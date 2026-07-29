@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import Logo from "./Logo";
 import {
   XAxis,
   YAxis,
@@ -298,10 +299,7 @@ export default function TradingJournalDashboard() {
           <button className="lg:hidden w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center">
             <Menu size={16} className="text-[#8A8D94]" />
           </button>
-          <div className="flex items-center gap-2.5">
-            <span className="w-6 h-6 rounded-full bg-gradient-to-br from-[#4ADE80] to-[#0F5132]" />
-            <span className="font-semibold text-lg tracking-tight">TradeLog</span>
-          </div>
+          <Logo />
         </div>
         <div className="flex items-center gap-2">
           <button className="w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center hover:border-[#2E3137] transition-colors">

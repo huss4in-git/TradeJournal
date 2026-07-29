@@ -94,6 +94,8 @@ function computeStats(trades) {
   const flats = trades.filter((t) => t.pnl === 0);
 
   const netPnl = trades.reduce((s, t) => s + t.pnl, 0);
+  const grossPnl = trades.reduce((s, t) => s + (t.gross ?? t.pnl), 0);
+  const totalFees = trades.reduce((s, t) => s + (t.fees ?? 0), 0);
   const grossWin = wins.reduce((s, t) => s + t.pnl, 0);
   const grossLoss = Math.abs(losses.reduce((s, t) => s + t.pnl, 0));
 
@@ -131,6 +133,8 @@ function computeStats(trades) {
 
   return {
     netPnl,
+    grossPnl,
+    totalFees,
     grossWin,
     grossLoss,
     winRate,
@@ -171,7 +175,7 @@ export default function TradingJournalDashboard() {
   const [trades, setTrades] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [range, setRange] = useState("all");
+  const [range, setRange] = useState("month");
   const [symbolFilter, setSymbolFilter] = useState("all");
 
   useEffect(() => {
@@ -185,13 +189,23 @@ export default function TradingJournalDashboard() {
         console.error("Failed to load entries:", error.message);
       } else if (data) {
         setTrades(
-          data.map((row) => ({
-            id: row.id,
-            date: row.entry_date,
-            symbol: row.symbol,
-            pnl: Number(row.pnl),
-            note: row.note,
-          }))
+          data.map((row) => {
+            const gross = Number(row.pnl);
+            const commission = Number(row.commission ?? 0);
+            const swap = Number(row.swap ?? 0);
+            return {
+              id: row.id,
+              date: row.entry_date,
+              symbol: row.symbol,
+              gross,
+              commission,
+              swap,
+              fees: commission + swap,
+              // net_pnl is generated in Postgres; fall back for pre-migration rows
+              pnl: row.net_pnl != null ? Number(row.net_pnl) : gross + commission + swap,
+              note: row.note,
+            };
+          })
         );
       }
       setLoaded(true);
@@ -233,7 +247,9 @@ export default function TradingJournalDashboard() {
       .insert({
         entry_date: entry.date,
         symbol: entry.symbol || null,
-        pnl: entry.pnl,
+        pnl: entry.gross,
+        commission: entry.commission,
+        swap: entry.swap,
         note: entry.note || null,
       })
       .select()
@@ -244,9 +260,23 @@ export default function TradingJournalDashboard() {
       return;
     }
 
+    const gross = Number(data.pnl);
+    const commission = Number(data.commission ?? 0);
+    const swap = Number(data.swap ?? 0);
+
     setTrades((prev) => [
       ...prev,
-      { id: data.id, date: data.entry_date, symbol: data.symbol, pnl: Number(data.pnl), note: data.note },
+      {
+        id: data.id,
+        date: data.entry_date,
+        symbol: data.symbol,
+        gross,
+        commission,
+        swap,
+        fees: commission + swap,
+        pnl: data.net_pnl != null ? Number(data.net_pnl) : gross + commission + swap,
+        note: data.note,
+      },
     ]);
     setShowForm(false);
   }
@@ -375,9 +405,17 @@ export default function TradingJournalDashboard() {
                 {hasData ? `${stats.netPnl >= 0 ? "+" : "-"}${currency(Math.abs(stats.netPnl))}` : "--"}
               </p>
               <p className="mt-1.5 text-[11px] text-[#6E7076]">
-                {hasData
-                  ? `${currency(stats.grossWin)} gross win · ${currency(stats.grossLoss)} gross loss`
-                  : "Add an entry to start tracking"}
+                {hasData ? (
+                  <>
+                    {currency(stats.grossPnl)} gross
+                    <span className="mx-1.5 text-[#33363B]">·</span>
+                    <span className={stats.totalFees < 0 ? "text-[#F87171]" : undefined}>
+                      {currency(stats.totalFees)} fees
+                    </span>
+                  </>
+                ) : (
+                  "Add an entry to start tracking"
+                )}
               </p>
             </Card>
 
@@ -675,6 +713,13 @@ function TradesPanel({ trades, onDelete }) {
                     className={`py-3.5 px-5 text-right font-semibold ${
                       t.pnl >= 0 ? "text-[#4ADE80]" : "text-[#F87171]"
                     }`}
+                    title={
+                      t.fees
+                        ? `Gross ${currency(t.gross)} · commission ${currency(
+                            t.commission
+                          )} · swap ${currency(t.swap)}`
+                        : undefined
+                    }
                   >
                     {t.pnl < 0 ? "-" : ""}
                     {currency(Math.abs(t.pnl))}
@@ -1207,7 +1252,9 @@ function ScoreRadar({ parts, score, show }) {
 function AddEntryModal({ onAdd, onClose }) {
   const [date, setDate] = useState(toDateKey(new Date()));
   const [symbol, setSymbol] = useState("");
-  const [pnl, setPnl] = useState("");
+  const [gross, setGross] = useState("");
+  const [commission, setCommission] = useState("");
+  const [swap, setSwap] = useState("");
   const [note, setNote] = useState("");
 
   useEffect(() => {
@@ -1216,19 +1263,33 @@ function AddEntryModal({ onAdd, onClose }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  const num = (v) => {
+    const n = parseFloat(v);
+    return Number.isNaN(n) ? 0 : n;
+  };
+  const grossValid = !Number.isNaN(parseFloat(gross));
+  const net = num(gross) + num(commission) + num(swap);
+
   function handleSubmit(e) {
     e.preventDefault();
-    const value = parseFloat(pnl);
-    if (Number.isNaN(value)) return;
-    onAdd({ date, symbol: symbol.trim().toUpperCase(), pnl: value, note: note.trim() });
+    if (!grossValid) return;
+    onAdd({
+      date,
+      symbol: symbol.trim().toUpperCase(),
+      gross: num(gross),
+      commission: num(commission),
+      swap: num(swap),
+      note: note.trim(),
+    });
   }
 
   const field =
     "w-full bg-[#0D0E10] border border-[#232529] rounded-lg px-3 py-2 text-sm text-white placeholder-[#4A4D53] focus:outline-none focus:border-[#4ADE80]/50 focus:ring-2 focus:ring-[#4ADE80]/15 [color-scheme:dark]";
+  const labelCls = "text-[11px] uppercase tracking-wider text-[#6E7076] block mb-1";
 
   return (
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-[#121316] border border-[#232529] rounded-2xl w-full max-w-sm p-5">
+      <div className="bg-[#121316] border border-[#232529] rounded-2xl w-full max-w-sm p-5 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold">Add entry</h3>
           <button onClick={onClose} aria-label="Close" className="text-[#6E7076] hover:text-white">
@@ -1237,11 +1298,11 @@ function AddEntryModal({ onAdd, onClose }) {
         </div>
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
-            <label className="text-[11px] uppercase tracking-wider text-[#6E7076] block mb-1">Date</label>
+            <label className={labelCls}>Date</label>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={field} required />
           </div>
           <div>
-            <label className="text-[11px] uppercase tracking-wider text-[#6E7076] block mb-1">
+            <label className={labelCls}>
               Symbol <span className="normal-case tracking-normal text-[#4A4D53]">optional</span>
             </label>
             <input
@@ -1252,21 +1313,65 @@ function AddEntryModal({ onAdd, onClose }) {
               className={field}
             />
           </div>
+
           <div>
-            <label className="text-[11px] uppercase tracking-wider text-[#6E7076] block mb-1">P&L ($)</label>
+            <label className={labelCls}>Profit</label>
             <input
               type="number"
               step="0.01"
-              value={pnl}
-              onChange={(e) => setPnl(e.target.value)}
-              placeholder="e.g. 150 or -80"
+              value={gross}
+              onChange={(e) => setGross(e.target.value)}
+              placeholder="112.40"
               className={field}
               required
             />
-            <p className="text-[11px] text-[#4A4D53] mt-1">Use a negative number for a loss.</p>
+            <p className="text-[11px] text-[#4A4D53] mt-1">
+              The MT5 Profit column, before fees. Negative for a loss.
+            </p>
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelCls}>Commission</label>
+              <input
+                type="number"
+                step="0.01"
+                value={commission}
+                onChange={(e) => setCommission(e.target.value)}
+                placeholder="-0.70"
+                className={field}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Swap</label>
+              <input
+                type="number"
+                step="0.01"
+                value={swap}
+                onChange={(e) => setSwap(e.target.value)}
+                placeholder="-1.47"
+                className={field}
+              />
+            </div>
+          </div>
+          <p className="text-[11px] text-[#4A4D53]">
+            Copy both straight from MT5, minus sign included. Leave blank if the account charges neither.
+          </p>
+
+          {/* Live net so you can check it against the balance change in MT5 */}
+          <div className="flex items-center justify-between rounded-lg bg-[#0D0E10] border border-[#232529] px-3 py-2.5">
+            <span className="text-[11px] uppercase tracking-wider text-[#6E7076]">Net P&L</span>
+            <span
+              className={`text-sm font-semibold ${
+                !grossValid ? "text-[#4A4D53]" : net >= 0 ? "text-[#4ADE80]" : "text-[#F87171]"
+              }`}
+            >
+              {grossValid ? `${net >= 0 ? "+" : "-"}${currency(Math.abs(net))}` : "--"}
+            </span>
+          </div>
+
           <div>
-            <label className="text-[11px] uppercase tracking-wider text-[#6E7076] block mb-1">
+            <label className={labelCls}>
               Note <span className="normal-case tracking-normal text-[#4A4D53]">optional</span>
             </label>
             <input

@@ -638,7 +638,7 @@ export default function TradingJournalDashboard() {
               </Card>
             </div>
 
-            <div className="xl:col-span-2">
+            <div className="xl:col-span-2 order-first xl:order-none">
               <Card noPad>
                 <MonthCalendar calendar={calendar} hasData={hasData} />
               </Card>
@@ -908,19 +908,24 @@ function MonthCalendar({ calendar, hasData }) {
                         {d}
                       </span>
 
-                      {traded && (
-                        <div className="mt-auto text-right leading-tight">
-                          <p
-                            className={`text-[12px] sm:text-[15px] font-bold whitespace-nowrap ${
-                              flat ? "text-[#C9CBD1]" : win ? "text-[#4ADE80]" : "text-[#F87171]"
-                            }`}
-                          >
-                            {info.pnl < 0 ? "-" : ""}
-                            {currency(Math.abs(info.pnl))}
-                          </p>
-                          <p className="text-[10px] sm:text-[11px] text-[#8A8D94]">
-                            {info.count} trade{info.count > 1 ? "s" : ""}
-                          </p>
+                     {traded && (
+  <div className="mt-auto text-right leading-tight min-w-0">
+    <p
+      className={`text-[10px] sm:text-[15px] font-bold truncate ${
+        flat ? "text-[#C9CBD1]" : win ? "text-[#4ADE80]" : "text-[#F87171]"
+      }`}
+      title={`${info.pnl < 0 ? "-" : ""}${currency(Math.abs(info.pnl))}`}
+    >
+      <span className="sm:hidden">{compact(info.pnl)}</span>
+      <span className="hidden sm:inline whitespace-nowrap">
+        {info.pnl < 0 ? "-" : ""}
+        {currency(Math.abs(info.pnl))}
+      </span>
+    </p>
+    <p className="text-[10px] sm:text-[11px] text-[#8A8D94]">
+      {info.count}
+      <span className="hidden sm:inline"> trade{info.count > 1 ? "s" : ""}</span>
+    </p>
                           <p className="text-[10px] sm:text-[11px] text-[#6E7076] hidden sm:block">
                             {winRate.toFixed(2)}%
                           </p>

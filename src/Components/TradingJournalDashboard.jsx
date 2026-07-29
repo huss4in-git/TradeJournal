@@ -7,255 +7,606 @@ import {
   ResponsiveContainer,
   Area,
   AreaChart,
+  BarChart,
+  Bar,
+  Cell,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  Radar,
 } from "recharts";
-import { Bell, User, Plus, Trash2, X, SlidersHorizontal, Calendar, ChevronDown } from "lucide-react";
+import {
+  Bell,
+  User,
+  Plus,
+  Trash2,
+  X,
+  LayoutGrid,
+  CandlestickChart,
+  NotebookPen,
+  BarChart3,
+  ClipboardList,
+  TrendingUp,
+  Wallet,
+  Menu,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import { supabase } from "../lib/supabaseClient";
 
+/* ------------------------------------------------------------------
+   Theme
+   bg #0A0A0B · surface #121316 · raised #17181B · border #232529
+   text #FFFFFF · muted #8A8D94 · dim #6E7076
+   green #4ADE80 · red #F87171 · flat #60A5FA
+   ------------------------------------------------------------------ */
+const GREEN = "#4ADE80";
+const RED = "#F87171";
+const FLAT = "#60A5FA";
+
+// Starting equity used to draw the balance line. Set this to your account size.
+const STARTING_BALANCE = 1000;
+
+// Exact dollars and cents everywhere, e.g. $105.23
 const currency = (n) =>
-  n.toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+  n.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+const compact = (n) => {
+  const abs = Math.abs(n);
+  if (abs >= 1000) return `${n < 0 ? "-" : ""}$${(abs / 1000).toFixed(1)}k`;
+  return `${n < 0 ? "-" : ""}$${abs.toFixed(0)}`;
+};
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-// ------------------------------------------------------------
-// Derived calculations — all computed from whatever entries
-// exist. No mock data, no broker connection. Add an entry and
-// every card below updates automatically.
-// ------------------------------------------------------------
-function computeStats(trades) {
-  const wins = trades.filter((t) => t.pnl > 0);
-  const losses = trades.filter((t) => t.pnl <= 0);
-  const netPnl = trades.reduce((s, t) => s + t.pnl, 0);
-  const grossWin = wins.reduce((s, t) => s + t.pnl, 0);
-  const grossLoss = Math.abs(losses.reduce((s, t) => s + t.pnl, 0));
-  const winRate = trades.length ? (wins.length / trades.length) * 100 : 0;
-  const avgWin = wins.length ? grossWin / wins.length : 0;
-  const avgLoss = losses.length ? grossLoss / losses.length : 0;
-  const profitFactor = grossLoss ? grossWin / grossLoss : grossWin > 0 ? Infinity : 0;
-
-  const byDay = {};
-  trades.forEach((t) => {
-    byDay[t.date] = (byDay[t.date] || 0) + t.pnl;
-  });
-  const days = Object.values(byDay);
-  const winDays = days.filter((d) => d >= 0).length;
-  const dayWinRate = days.length ? (winDays / days.length) * 100 : 0;
-
-  return { netPnl, winRate, avgWin, avgLoss, profitFactor, dayWinRate };
-}
-
-function buildEquityCurve(trades) {
-  const sorted = [...trades].sort((a, b) => new Date(a.date) - new Date(b.date));
-  let running = 0;
-  return sorted.map((t) => {
-    running += t.pnl;
-    return {
-      date: new Date(t.date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      equity: running,
-    };
-  });
-}
-
-function buildCalendar(trades) {
-  const byDay = {};
-  trades.forEach((t) => {
-    if (!byDay[t.date]) byDay[t.date] = { pnl: 0, count: 0, wins: 0 };
-    byDay[t.date].pnl += t.pnl;
-    byDay[t.date].count += 1;
-    if (t.pnl >= 0) byDay[t.date].wins += 1;
-  });
-  return byDay;
-}
+const clamp = (n, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n));
 
 function toDateKey(d) {
-  // local-date key, e.g. "2026-07-29", avoids UTC shift bugs
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const dd = String(d.getDate()).padStart(2, "0");
   return `${yyyy}-${mm}-${dd}`;
 }
 
+/* ------------------------------------------------------------------
+   Derived calculations — all computed from real entries.
+   ------------------------------------------------------------------ */
+function groupByDay(trades) {
+  const byDay = {};
+  trades.forEach((t) => {
+    if (!byDay[t.date]) byDay[t.date] = { pnl: 0, count: 0, wins: 0, notes: 0 };
+    byDay[t.date].pnl += t.pnl;
+    byDay[t.date].count += 1;
+    if (t.pnl > 0) byDay[t.date].wins += 1;
+    if (t.note) byDay[t.date].notes += 1;
+  });
+  return byDay;
+}
+
+function computeStats(trades) {
+  const wins = trades.filter((t) => t.pnl > 0);
+  const losses = trades.filter((t) => t.pnl < 0);
+  const flats = trades.filter((t) => t.pnl === 0);
+
+  const netPnl = trades.reduce((s, t) => s + t.pnl, 0);
+  const grossWin = wins.reduce((s, t) => s + t.pnl, 0);
+  const grossLoss = Math.abs(losses.reduce((s, t) => s + t.pnl, 0));
+
+  const winRate = trades.length ? (wins.length / trades.length) * 100 : 0;
+  const avgWin = wins.length ? grossWin / wins.length : 0;
+  const avgLoss = losses.length ? grossLoss / losses.length : 0;
+  const profitFactor = grossLoss ? grossWin / grossLoss : grossWin > 0 ? Infinity : 0;
+  const ratio = avgLoss ? avgWin / avgLoss : avgWin > 0 ? Infinity : 0;
+
+  const byDay = groupByDay(trades);
+  const dayValues = Object.values(byDay).map((d) => d.pnl);
+  const winDays = dayValues.filter((d) => d > 0).length;
+  const lossDays = dayValues.filter((d) => d < 0).length;
+  const flatDays = dayValues.filter((d) => d === 0).length;
+  const dayWinRate = dayValues.length ? (winDays / dayValues.length) * 100 : 0;
+
+  const meanDay = dayValues.length ? dayValues.reduce((s, d) => s + d, 0) / dayValues.length : 0;
+  const meanAbs = dayValues.length
+    ? dayValues.reduce((s, d) => s + Math.abs(d), 0) / dayValues.length
+    : 0;
+  const variance = dayValues.length
+    ? dayValues.reduce((s, d) => s + (d - meanDay) ** 2, 0) / dayValues.length
+    : 0;
+  const cv = meanAbs > 0 ? Math.sqrt(variance) / meanAbs : 2;
+  const consistency = clamp(100 * (1 - cv / 2));
+
+  const parts = {
+    "Win %": clamp((winRate / 60) * 100),
+    "Profit factor": clamp(((Number.isFinite(profitFactor) ? profitFactor : 3) / 2.5) * 100),
+    "Avg win/loss": clamp(((Number.isFinite(ratio) ? ratio : 3) / 2.5) * 100),
+    "Day win %": clamp((dayWinRate / 60) * 100),
+    Consistency: consistency,
+  };
+  const score = Object.values(parts).reduce((s, v) => s + v, 0) / Object.keys(parts).length;
+
+  return {
+    netPnl,
+    grossWin,
+    grossLoss,
+    winRate,
+    avgWin,
+    avgLoss,
+    profitFactor,
+    ratio,
+    dayWinRate,
+    tradingDays: dayValues.length,
+    counts: { wins: wins.length, losses: losses.length, flats: flats.length },
+    dayCounts: { wins: winDays, losses: lossDays, flats: flatDays },
+    consistency,
+    parts,
+    score,
+    balance: STARTING_BALANCE + netPnl,
+  };
+}
+
+function buildDailySeries(trades) {
+  const byDay = groupByDay(trades);
+  const sorted = Object.entries(byDay).sort((a, b) => new Date(a[0]) - new Date(b[0]));
+  let running = 0;
+  return sorted.map(([date, info]) => {
+    running += info.pnl;
+    return {
+      key: date,
+      label: new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      daily: info.pnl,
+      cumulative: running,
+      balance: STARTING_BALANCE + running,
+    };
+  });
+}
+
+/* ------------------------------------------------------------------ */
+
 export default function TradingJournalDashboard() {
   const [trades, setTrades] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [range, setRange] = useState("all");
+  const [symbolFilter, setSymbolFilter] = useState("all");
 
-  // Load persisted entries on mount (falls back silently if storage isn't available)
   useEffect(() => {
     (async () => {
-      if (!window.storage) {
-        setLoaded(true);
-        return;
+      const { data, error } = await supabase
+        .from("manual_entries")
+        .select("*")
+        .order("entry_date", { ascending: true });
+
+      if (error) {
+        console.error("Failed to load entries:", error.message);
+      } else if (data) {
+        setTrades(
+          data.map((row) => ({
+            id: row.id,
+            date: row.entry_date,
+            symbol: row.symbol,
+            pnl: Number(row.pnl),
+            note: row.note,
+          }))
+        );
       }
-      try {
-        const result = await window.storage.get("manual-trades", false);
-        if (result?.value) setTrades(JSON.parse(result.value));
-      } catch {
-        // no saved data yet — start empty
-      } finally {
-        setLoaded(true);
-      }
+      setLoaded(true);
     })();
   }, []);
 
-  // Persist whenever entries change (after initial load)
-  useEffect(() => {
-    if (!loaded || !window.storage) return;
-    window.storage.set("manual-trades", JSON.stringify(trades), false).catch(() => {});
-  }, [trades, loaded]);
+  const symbols = useMemo(
+    () => Array.from(new Set(trades.map((t) => t.symbol).filter(Boolean))).sort(),
+    [trades]
+  );
 
-  const stats = useMemo(() => computeStats(trades), [trades]);
-  const equityCurve = useMemo(() => buildEquityCurve(trades), [trades]);
-  const calendar = useMemo(() => buildCalendar(trades), [trades]);
-  const hasData = trades.length > 0;
+  const visible = useMemo(() => {
+    const now = new Date();
+    let from = null;
+    if (range === "30d") from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
+    if (range === "90d") from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 89);
+    if (range === "month") from = new Date(now.getFullYear(), now.getMonth(), 1);
 
-  function addEntry(entry) {
-    setTrades((prev) => [...prev, { id: crypto.randomUUID(), ...entry }]);
+    return trades.filter((t) => {
+      if (symbolFilter !== "all" && t.symbol !== symbolFilter) return false;
+      if (!from) return true;
+      return new Date(t.date) >= from;
+    });
+  }, [trades, range, symbolFilter]);
+
+  const stats = useMemo(() => computeStats(visible), [visible]);
+  const series = useMemo(() => buildDailySeries(visible), [visible]);
+  const calendar = useMemo(() => groupByDay(visible), [visible]);
+  const hasData = visible.length > 0;
+
+  const lastEntry = useMemo(() => {
+    if (!trades.length) return null;
+    return [...trades].sort((a, b) => new Date(b.date) - new Date(a.date))[0].date;
+  }, [trades]);
+
+  async function addEntry(entry) {
+    const { data, error } = await supabase
+      .from("manual_entries")
+      .insert({
+        entry_date: entry.date,
+        symbol: entry.symbol || null,
+        pnl: entry.pnl,
+        note: entry.note || null,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Failed to save entry:", error.message);
+      return;
+    }
+
+    setTrades((prev) => [
+      ...prev,
+      { id: data.id, date: data.entry_date, symbol: data.symbol, pnl: Number(data.pnl), note: data.note },
+    ]);
     setShowForm(false);
   }
 
-  function deleteEntry(id) {
+  async function deleteEntry(id) {
+    const { error } = await supabase.from("manual_entries").delete().eq("id", id);
+    if (error) {
+      console.error("Failed to delete entry:", error.message);
+      return;
+    }
     setTrades((prev) => prev.filter((t) => t.id !== id));
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F7FA] text-[#1B1D28] font-sans">
+    <div className="min-h-screen bg-[#0A0A0B] text-white font-sans">
       {/* Top bar */}
-      <div className="bg-[#15112B] px-6 py-3.5 flex items-center justify-between">
-        <span className="text-white font-semibold text-lg tracking-tight">TradeLog</span>
+      <div className="bg-[#0D0E10] border-b border-[#1D1F23] px-4 sm:px-6 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button className="relative w-9 h-9 rounded-full bg-white/10 flex items-center justify-center">
-            <Bell size={15} className="text-white" />
+          <button className="lg:hidden w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center">
+            <Menu size={16} className="text-[#8A8D94]" />
           </button>
-          <button className="w-9 h-9 rounded-full bg-white flex items-center justify-center">
-            <User size={15} className="text-[#15112B]" />
+          <div className="flex items-center gap-2.5">
+            <span className="w-6 h-6 rounded-full bg-gradient-to-br from-[#4ADE80] to-[#0F5132]" />
+            <span className="font-semibold text-lg tracking-tight">TradeLog</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button className="w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center hover:border-[#2E3137] transition-colors">
+            <Bell size={15} className="text-[#8A8D94]" />
+          </button>
+          <button className="w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center hover:border-[#2E3137] transition-colors">
+            <User size={15} className="text-[#8A8D94]" />
           </button>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-5 py-6">
-        {/* Header row */}
-        <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-          <h1 className="text-2xl font-semibold">Dashboard</h1>
-          <div className="flex items-center gap-2 flex-wrap">
-            <button className="flex items-center gap-1.5 h-9 px-3 rounded-full bg-white border border-[#E7E9EF] text-sm">
-              <SlidersHorizontal size={14} className="text-[#8A8FA3]" />
-              Filters
-              <ChevronDown size={13} className="text-[#8A8FA3]" />
-            </button>
-            <button className="flex items-center gap-1.5 h-9 px-3 rounded-full bg-white border border-[#E7E9EF] text-sm">
-              <Calendar size={14} className="text-[#8A8FA3]" />
-              Jul 01 – Jul 29, 2026
-            </button>
+      <div className="flex">
+        {/* Icon rail */}
+        <nav className="hidden lg:flex w-16 shrink-0 flex-col items-center gap-1.5 py-5 bg-[#0D0E10] border-r border-[#1D1F23] min-h-[calc(100vh-61px)]">
+          <RailButton icon={LayoutGrid} active />
+          <RailButton icon={CandlestickChart} />
+          <RailButton icon={NotebookPen} />
+          <RailButton icon={BarChart3} />
+          <RailButton icon={ClipboardList} />
+          <div className="h-px w-7 bg-[#1D1F23] my-2" />
+          <RailButton icon={TrendingUp} />
+          <RailButton icon={Wallet} />
+        </nav>
+
+        <main className="flex-1 min-w-0 px-4 sm:px-5 py-6">
+          {/* Header row */}
+          <div className="flex items-center justify-between mb-1 flex-wrap gap-3">
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
+              <p className="text-sm text-[#6E7076] mt-0.5">Performance metrics and trading history</p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <Select value={symbolFilter} onChange={setSymbolFilter} label="Symbol">
+                <option value="all">All symbols</option>
+                {symbols.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </Select>
+              <Select value={range} onChange={setRange} label="Date range">
+                <option value="all">All time</option>
+                <option value="month">This month</option>
+                <option value="30d">Last 30 days</option>
+                <option value="90d">Last 90 days</option>
+              </Select>
+              <span className="h-9 inline-flex items-center gap-2 px-3.5 rounded-lg bg-[#4ADE80]/10 border border-[#4ADE80]/25 text-xs font-medium text-[#4ADE80]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80]" />
+                Manual entries
+              </span>
+            </div>
+          </div>
+
+          <div className="h-px bg-[#1D1F23] my-4" />
+
+          {/* Meta row */}
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+            <p className="text-xs text-[#6E7076]">
+              {lastEntry ? (
+                <>
+                  Last entry{" "}
+                  <span className="text-[#C9CBD1] font-medium">
+                    {new Date(lastEntry).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}
+                  </span>
+                  <span className="mx-2 text-[#33363B]">·</span>
+                  {visible.length} of {trades.length} shown
+                </>
+              ) : loaded ? (
+                "Nothing logged yet"
+              ) : (
+                "Loading entries…"
+              )}
+            </p>
             <button
               onClick={() => setShowForm(true)}
-              className="flex items-center gap-1.5 h-9 px-4 rounded-full bg-[#6D5DF0] text-white text-sm font-medium"
+              className="flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#4ADE80] text-[#08130C] text-sm font-semibold hover:bg-[#3ECF74] transition-colors"
             >
               <Plus size={15} />
               Add Entry
             </button>
           </div>
-        </div>
 
-        {/* KPI row */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-3">
-          <StatCard label="Net P&L" value={hasData ? currency(stats.netPnl) : "--"} positive={stats.netPnl >= 0} />
-          <ArcCard label="Trade win %" value={hasData ? stats.winRate : null} />
-          <ArcCard label="Profit factor" value={hasData ? stats.profitFactor : null} isRatio />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-          <ArcCard label="Day win %" value={hasData ? stats.dayWinRate : null} />
-          <AvgWinLossCard avgWin={hasData ? stats.avgWin : null} avgLoss={hasData ? stats.avgLoss : null} />
-        </div>
+          {/* KPI row 1 */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+            <Card>
+              <div className="flex items-center justify-between">
+                <Label>Net P&L</Label>
+                <span className="text-[11px] px-2 py-0.5 rounded-md bg-[#17181B] border border-[#232529] text-[#8A8D94]">
+                  {visible.length}
+                </span>
+              </div>
+              <p
+                className={`mt-2 text-2xl font-semibold ${
+                  !hasData ? "text-[#4A4D53]" : stats.netPnl >= 0 ? "text-[#4ADE80]" : "text-[#F87171]"
+                }`}
+              >
+                {hasData ? `${stats.netPnl >= 0 ? "+" : "-"}${currency(Math.abs(stats.netPnl))}` : "--"}
+              </p>
+              <p className="mt-1.5 text-[11px] text-[#6E7076]">
+                {hasData
+                  ? `${currency(stats.grossWin)} gross win · ${currency(stats.grossLoss)} gross loss`
+                  : "Add an entry to start tracking"}
+              </p>
+            </Card>
 
-        {/* Equity curve */}
-        <Card title="Equity Curve" className="mb-6">
-          {hasData ? (
-            <ResponsiveContainer width="100%" height={220}>
-              <AreaChart data={equityCurve} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="equityFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#6D5DF0" stopOpacity={0.25} />
-                    <stop offset="100%" stopColor="#6D5DF0" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="#EEEFF3" vertical={false} />
-                <XAxis
-                  dataKey="date"
-                  stroke="#B2B6C4"
-                  tick={{ fontSize: 11, fill: "#8A8FA3" }}
-                  axisLine={{ stroke: "#EEEFF3" }}
-                  tickLine={false}
-                  interval="preserveStartEnd"
-                />
-                <YAxis
-                  stroke="#B2B6C4"
-                  tick={{ fontSize: 11, fill: "#8A8FA3" }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={(v) => `$${(v / 1000).toFixed(1)}k`}
-                />
-                <Tooltip
-                  contentStyle={{ background: "#fff", border: "1px solid #E7E9EF", borderRadius: 10, fontSize: 12 }}
-                  formatter={(v) => [currency(v), "Equity"]}
-                />
-                <Area type="monotone" dataKey="equity" stroke="#6D5DF0" strokeWidth={2} fill="url(#equityFill)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          ) : (
-            <EmptyState text="No entries yet" hint="Tap Add Entry to log your first trade or daily P&L" />
-          )}
-        </Card>
+            <Card>
+              <Label>Trade win %</Label>
+              <div className="mt-1 flex items-center justify-between gap-3">
+                <p className="text-2xl font-semibold">{hasData ? `${stats.winRate.toFixed(2)}%` : "--"}</p>
+                <Gauge counts={stats.counts} show={hasData} noun="trades" />
+              </div>
+            </Card>
 
-        {/* Calendar */}
-        <Card className="mb-6" noPad>
-          <MonthCalendar calendar={calendar} hasData={hasData} />
-        </Card>
+            <Card>
+              <Label>Profit factor</Label>
+              <div className="mt-2 flex items-end justify-between gap-3">
+                <div>
+                  <p className="text-2xl font-semibold">
+                    {hasData
+                      ? Number.isFinite(stats.profitFactor)
+                        ? stats.profitFactor.toFixed(2)
+                        : "∞"
+                      : "--"}
+                  </p>
+                  <p className="mt-2 text-[11px] text-[#6E7076]">
+                    {hasData
+                      ? stats.profitFactor >= 1
+                        ? "Above breakeven"
+                        : "Below breakeven"
+                      : "No trades in range"}
+                  </p>
+                </div>
+                <Donut win={stats.grossWin} loss={stats.grossLoss} show={hasData} />
+              </div>
+            </Card>
+          </div>
 
-        {/* Entries list */}
-        <Card title="Entries" noPad>
-          {hasData ? (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-[11px] text-[#8A8FA3] uppercase tracking-wide border-b border-[#EEEFF3]">
-                  <th className="py-3 px-5 font-medium">Date</th>
-                  <th className="py-3 px-5 font-medium">Symbol</th>
-                  <th className="py-3 px-5 font-medium text-right">P&L</th>
-                  <th className="py-3 px-5 font-medium text-right">Note</th>
-                  <th className="py-3 px-5 w-10"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {[...trades]
-                  .sort((a, b) => new Date(b.date) - new Date(a.date))
-                  .map((t) => (
-                    <tr key={t.id} className="border-b border-[#EEEFF3] last:border-0">
-                      <td className="py-3 px-5 text-[#8A8FA3]">
-                        {new Date(t.date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                      </td>
-                      <td className="py-3 px-5 font-medium">{t.symbol || "—"}</td>
-                      <td
-                        className={`py-3 px-5 text-right font-medium ${
-                          t.pnl >= 0 ? "text-[#16A34A]" : "text-[#DC2626]"
+          {/* KPI row 2 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+            <Card>
+              <Label>Day win %</Label>
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-2xl font-semibold mb-1">
+                  {hasData ? `${stats.dayWinRate.toFixed(2)}%` : "--"}
+                </p>
+                <Gauge counts={stats.dayCounts} show={hasData} noun="days" />
+              </div>
+            </Card>
+
+            <Card>
+              <Label>Avg win/loss trade</Label>
+              <div className="mt-5 flex items-center gap-5">
+                <p className="text-2xl font-semibold shrink-0">
+                  {hasData ? (Number.isFinite(stats.ratio) ? stats.ratio.toFixed(2) : "∞") : "--"}
+                </p>
+                <SplitBar avgWin={stats.avgWin} avgLoss={stats.avgLoss} show={hasData} />
+              </div>
+            </Card>
+          </div>
+
+          {/* Charts row */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-6">
+            <Card title="Trade score">
+              <ScoreRadar parts={stats.parts} score={stats.score} show={hasData} />
+            </Card>
+
+            <Card title="Daily net cumulative P&L">
+              {hasData ? (
+                <ResponsiveContainer width="100%" height={250}>
+                  <AreaChart data={series} margin={{ top: 10, right: 8, left: -10, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="cumFill" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={GREEN} stopOpacity={0.3} />
+                        <stop offset="100%" stopColor={GREEN} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid stroke="#1D1F23" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      stroke="#1D1F23"
+                      tick={{ fontSize: 11, fill: "#6E7076" }}
+                      tickLine={false}
+                      interval="preserveStartEnd"
+                      minTickGap={28}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: "#6E7076" }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={54}
+                      tickFormatter={compact}
+                    />
+                    <Tooltip contentStyle={tooltipStyle} itemStyle={itemStyle} labelStyle={labelStyle} formatter={(v) => [currency(v), "Cumulative"]} />
+                    <Area
+                      type="monotone"
+                      dataKey="cumulative"
+                      stroke={GREEN}
+                      strokeWidth={2}
+                      fill="url(#cumFill)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyState text="No entries yet" hint="Your equity curve is built from logged days" />
+              )}
+            </Card>
+
+            <Card title="Net daily P&L">
+              {hasData ? (
+                <ResponsiveContainer width="100%" height={250}>
+                  <BarChart data={series} margin={{ top: 10, right: 8, left: -10, bottom: 0 }}>
+                    <CartesianGrid stroke="#1D1F23" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      stroke="#1D1F23"
+                      tick={{ fontSize: 11, fill: "#6E7076" }}
+                      tickLine={false}
+                      interval="preserveStartEnd"
+                      minTickGap={28}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 11, fill: "#6E7076" }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={54}
+                      tickFormatter={compact}
+                    />
+                    <Tooltip
+                      cursor={{ fill: "#17181B" }}
+                      contentStyle={tooltipStyle}
+                      itemStyle={itemStyle}
+                      labelStyle={labelStyle}
+                      formatter={(v) => [currency(v), "Day"]}
+                    />
+                    <Bar dataKey="daily" radius={[3, 3, 0, 0]} maxBarSize={14}>
+                      {series.map((d) => (
+                        <Cell key={d.key} fill={d.daily >= 0 ? GREEN : RED} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <EmptyState text="No entries yet" hint="Each bar is one logged trading day" />
+              )}
+            </Card>
+          </div>
+
+          {/* Lower section */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 items-start">
+            <div className="space-y-3">
+              <TradesPanel trades={visible} onDelete={deleteEntry} />
+
+              <Card title="Account balance">
+                {hasData ? (
+                  <>
+                    <div className="flex items-center gap-4 mb-2 flex-wrap">
+                      <LegendDot color={GREEN}>Balance</LegendDot>
+                      <span className="text-xs text-[#6E7076]">
+                        Start {currency(STARTING_BALANCE)}
+                      </span>
+                    </div>
+                    <ResponsiveContainer width="100%" height={230}>
+                      <AreaChart data={series} margin={{ top: 10, right: 8, left: -6, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="balFill" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor={GREEN} stopOpacity={0.28} />
+                            <stop offset="100%" stopColor={GREEN} stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid stroke="#1D1F23" vertical={false} />
+                        <XAxis
+                          dataKey="label"
+                          stroke="#1D1F23"
+                          tick={{ fontSize: 11, fill: "#6E7076" }}
+                          tickLine={false}
+                          interval="preserveStartEnd"
+                          minTickGap={30}
+                        />
+                        <YAxis
+                          tick={{ fontSize: 11, fill: "#6E7076" }}
+                          axisLine={false}
+                          tickLine={false}
+                          width={58}
+                          tickFormatter={compact}
+                          domain={["auto", "auto"]}
+                        />
+                        <Tooltip
+                          contentStyle={tooltipStyle}
+                          itemStyle={itemStyle}
+                          labelStyle={labelStyle}
+                          formatter={(v) => [currency(v), "Balance"]}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="balance"
+                          stroke={GREEN}
+                          strokeWidth={2}
+                          fill="url(#balFill)"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+
+                    <div className="mt-3 pt-3 border-t border-[#1D1F23] flex items-center justify-between text-xs">
+                      <span className="font-semibold">
+                        {currency(stats.balance)}{" "}
+                        <span className="text-[#6E7076] font-normal">balance</span>
+                      </span>
+                      <span
+                        className={`font-semibold ${
+                          stats.netPnl >= 0 ? "text-[#4ADE80]" : "text-[#F87171]"
                         }`}
                       >
-                        {t.pnl >= 0 ? "+" : ""}
-                        {currency(t.pnl)}
-                      </td>
-                      <td className="py-3 px-5 text-right text-[#8A8FA3] text-xs">{t.note || ""}</td>
-                      <td className="py-3 px-5">
-                        <button onClick={() => deleteEntry(t.id)} className="text-[#B2B6C4] hover:text-[#DC2626]">
-                          <Trash2 size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          ) : (
-            <div className="p-5">
-              <EmptyState text="No entries yet" hint="Tap Add Entry to log your first trade or daily P&L" />
+                        {stats.netPnl >= 0 ? "+" : "-"}
+                        {currency(Math.abs(stats.netPnl))}{" "}
+                        <span className="text-[#6E7076] font-normal">net P&L</span>
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <EmptyState text="No balance history" hint="Balance is starting equity plus logged P&L" />
+                )}
+              </Card>
             </div>
-          )}
-        </Card>
+
+            <div className="xl:col-span-2">
+              <Card noPad>
+                <MonthCalendar calendar={calendar} hasData={hasData} />
+              </Card>
+            </div>
+          </div>
+        </main>
       </div>
 
       {showForm && <AddEntryModal onAdd={addEntry} onClose={() => setShowForm(false)} />}
@@ -263,181 +614,110 @@ export default function TradingJournalDashboard() {
   );
 }
 
-// ------------------------------------------------------------
-// Add entry modal
-// ------------------------------------------------------------
-function AddEntryModal({ onAdd, onClose }) {
-  const [date, setDate] = useState(toDateKey(new Date()));
-  const [symbol, setSymbol] = useState("");
-  const [pnl, setPnl] = useState("");
-  const [note, setNote] = useState("");
+const tooltipStyle = {
+  background: "#17181B",
+  border: "1px solid #2A2C31",
+  borderRadius: 10,
+  fontSize: 12,
+};
+const itemStyle = { color: "#FFFFFF" };
+const labelStyle = { color: "#6E7076", fontSize: 11 };
 
-  function handleSubmit(e) {
-    e.preventDefault();
-    const value = parseFloat(pnl);
-    if (Number.isNaN(value)) return;
-    onAdd({ date, symbol: symbol.trim(), pnl: value, note: note.trim() });
-  }
+/* ------------------------------------------------------------------
+   Recent trades / All entries
+   ------------------------------------------------------------------ */
+function TradesPanel({ trades, onDelete }) {
+  const [tab, setTab] = useState("recent");
 
-  return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl w-full max-w-sm p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-semibold">Add Entry</h3>
-          <button onClick={onClose} className="text-[#8A8FA3]">
-            <X size={18} />
-          </button>
-        </div>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div>
-            <label className="text-xs text-[#8A8FA3] block mb-1">Date</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full border border-[#E7E9EF] rounded-lg px-3 py-2 text-sm"
-              required
-            />
-          </div>
-          <div>
-            <label className="text-xs text-[#8A8FA3] block mb-1">Symbol (optional)</label>
-            <input
-              type="text"
-              value={symbol}
-              onChange={(e) => setSymbol(e.target.value)}
-              placeholder="NAS100, XAUUSD, ES..."
-              className="w-full border border-[#E7E9EF] rounded-lg px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-[#8A8FA3] block mb-1">P&L ($)</label>
-            <input
-              type="number"
-              step="0.01"
-              value={pnl}
-              onChange={(e) => setPnl(e.target.value)}
-              placeholder="e.g. 150 or -80"
-              className="w-full border border-[#E7E9EF] rounded-lg px-3 py-2 text-sm"
-              required
-            />
-            <p className="text-[11px] text-[#B2B6C4] mt-1">Use a negative number for a loss.</p>
-          </div>
-          <div>
-            <label className="text-xs text-[#8A8FA3] block mb-1">Note (optional)</label>
-            <input
-              type="text"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Setup, mistake, mood..."
-              className="w-full border border-[#E7E9EF] rounded-lg px-3 py-2 text-sm"
-            />
-          </div>
-          <button
-            type="submit"
-            className="w-full bg-[#6D5DF0] text-white rounded-lg py-2.5 text-sm font-medium mt-2"
-          >
-            Add Entry
-          </button>
-        </form>
-      </div>
-    </div>
+  const sorted = useMemo(
+    () => [...trades].sort((a, b) => new Date(b.date) - new Date(a.date)),
+    [trades]
   );
-}
+  const rows = tab === "recent" ? sorted.slice(0, 6) : sorted;
 
-// ------------------------------------------------------------
-// Shared components
-// ------------------------------------------------------------
-function Card({ title, children, className = "", noPad }) {
   return (
-    <div className={`bg-white rounded-2xl border border-[#E7E9EF] ${className}`}>
-      {title && (
-        <div className="px-5 pt-5 pb-1">
-          <h2 className="text-[15px] font-semibold">{title}</h2>
+    <div className="bg-[#121316] rounded-2xl border border-[#232529] overflow-hidden">
+      <div className="flex items-center gap-6 px-5 pt-4 border-b border-[#1D1F23]">
+        <Tab active={tab === "recent"} onClick={() => setTab("recent")}>
+          Recent trades
+        </Tab>
+        <Tab active={tab === "all"} onClick={() => setTab("all")}>
+          All entries
+        </Tab>
+      </div>
+
+      {rows.length ? (
+        <div className={tab === "all" ? "max-h-[420px] overflow-y-auto" : ""}>
+          <table className="w-full text-sm">
+            <thead className="bg-[#17181B] sticky top-0">
+              <tr className="text-[11px] uppercase tracking-wider text-[#6E7076]">
+                <th className="py-3 px-5 text-left font-medium">Close date</th>
+                <th className="py-3 px-4 text-left font-medium">Symbol</th>
+                <th className="py-3 px-5 text-right font-medium">Net P&L</th>
+                <th className="py-3 pr-4 w-8" />
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((t) => (
+                <tr
+                  key={t.id}
+                  className="border-b border-[#1D1F23] last:border-0 hover:bg-[#17181B]/60 group"
+                >
+                  <td className="py-3.5 px-5 text-[#8A8D94]">
+                    {new Date(t.date).toLocaleDateString("en-US", {
+                      month: "2-digit",
+                      day: "2-digit",
+                      year: "numeric",
+                    })}
+                  </td>
+                  <td className="py-3.5 px-4 text-[#E4E6EA]">{t.symbol || "—"}</td>
+                  <td
+                    className={`py-3.5 px-5 text-right font-semibold ${
+                      t.pnl >= 0 ? "text-[#4ADE80]" : "text-[#F87171]"
+                    }`}
+                  >
+                    {t.pnl < 0 ? "-" : ""}
+                    {currency(Math.abs(t.pnl))}
+                  </td>
+                  <td className="py-3.5 pr-4">
+                    <button
+                      onClick={() => onDelete(t.id)}
+                      aria-label="Delete entry"
+                      className="text-[#4A4D53] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-[#F87171] transition"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="p-5">
+          <EmptyState text="No trades in this range" hint="Add an entry or widen the date range" />
         </div>
       )}
-      <div className={noPad ? "" : "p-5 pt-3"}>{children}</div>
     </div>
   );
 }
 
-function EmptyState({ text, hint }) {
+function Tab({ active, onClick, children }) {
   return (
-    <div className="flex flex-col items-center justify-center py-14 text-center">
-      <div className="w-14 h-14 rounded-full bg-[#F1F0FB] flex items-center justify-center mb-3">
-        <Plus size={20} className="text-[#B7AEF0]" />
-      </div>
-      <p className="text-sm text-[#5B5F6E]">{text}</p>
-      <p className="text-xs text-[#B2B6C4] mt-0.5">{hint}</p>
-    </div>
+    <button
+      onClick={onClick}
+      className={`pb-3 text-[15px] font-medium border-b-2 -mb-px transition-colors ${
+        active ? "text-[#4ADE80] border-[#4ADE80]" : "text-[#6E7076] border-transparent hover:text-[#C9CBD1]"
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
-function StatCard({ label, value, positive }) {
-  const color = value === "--" ? "text-[#B2B6C4]" : positive ? "text-[#16A34A]" : "text-[#DC2626]";
-  return (
-    <div className="bg-white rounded-2xl border border-[#E7E9EF] p-4">
-      <p className="text-[11px] text-[#8A8FA3] uppercase tracking-wide mb-2">{label}</p>
-      <p className={`text-xl font-semibold ${color}`}>{value}</p>
-    </div>
-  );
-}
-
-function ArcCard({ label, value, isRatio }) {
-  const hasValue = value !== null && value !== undefined && !Number.isNaN(value);
-  const pct = isRatio ? Math.min((value / 3) * 100, 100) : value;
-  const radius = 26;
-  const circumference = Math.PI * radius;
-  const offset = hasValue ? circumference - (pct / 100) * circumference : 0;
-
-  return (
-    <div className="bg-white rounded-2xl border border-[#E7E9EF] p-4 flex items-center justify-between">
-      <div>
-        <p className="text-[11px] text-[#8A8FA3] uppercase tracking-wide mb-2">{label}</p>
-        <p className="text-xl font-semibold">
-          {hasValue ? (isRatio ? value.toFixed(2) : `${value.toFixed(1)}%`) : "--"}
-        </p>
-      </div>
-      <svg width="64" height="36" viewBox="0 0 64 36">
-        <path d="M 6 32 A 26 26 0 0 1 58 32" fill="none" stroke="#EEEFF3" strokeWidth="6" strokeLinecap="round" />
-        {hasValue && (
-          <path
-            d="M 6 32 A 26 26 0 0 1 58 32"
-            fill="none"
-            stroke={pct >= 50 ? "#16A34A" : "#DC2626"}
-            strokeWidth="6"
-            strokeLinecap="round"
-            strokeDasharray={circumference}
-            strokeDashoffset={offset}
-          />
-        )}
-      </svg>
-    </div>
-  );
-}
-
-function AvgWinLossCard({ avgWin, avgLoss }) {
-  const hasValue = avgWin !== null && avgLoss !== null;
-  const total = hasValue ? avgWin + avgLoss : 1;
-  const winPct = hasValue && total > 0 ? (avgWin / total) * 100 : 50;
-
-  return (
-    <div className="bg-white rounded-2xl border border-[#E7E9EF] p-4">
-      <p className="text-[11px] text-[#8A8FA3] uppercase tracking-wide mb-2">Avg win / loss trade</p>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-sm font-semibold">{hasValue ? currency(avgWin) : "--"}</span>
-        <span className="text-sm font-semibold text-[#DC2626]">{hasValue ? `-${currency(avgLoss)}` : "--"}</span>
-      </div>
-      <div className="h-2 rounded-full bg-[#EEEFF3] overflow-hidden flex">
-        <div className="h-full bg-[#16A34A]" style={{ width: `${winPct}%` }} />
-        <div className="h-full bg-[#DC2626]" style={{ width: `${100 - winPct}%` }} />
-      </div>
-    </div>
-  );
-}
-
-// ------------------------------------------------------------
-// Month calendar with weekly summary column
-// ------------------------------------------------------------
+/* ------------------------------------------------------------------
+   Month calendar
+   ------------------------------------------------------------------ */
 function MonthCalendar({ calendar, hasData }) {
   const [cursor, setCursor] = useState(() => {
     const dates = Object.keys(calendar).map((d) => new Date(d));
@@ -454,6 +734,7 @@ function MonthCalendar({ calendar, hasData }) {
   const cells = [];
   for (let i = 0; i < leadingBlanks; i++) cells.push(null);
   for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  const weeks = chunkIntoWeeks(cells);
 
   let monthTotal = 0;
   let tradingDays = 0;
@@ -465,132 +746,545 @@ function MonthCalendar({ calendar, hasData }) {
     }
   });
 
-  const weeks = chunkIntoWeeks(cells);
+  const now = new Date();
+  const isThisMonth = year === now.getFullYear() && month === now.getMonth();
+  const todayKey = toDateKey(now);
+
+  const weekTotals = (week) => {
+    const pnl = week.reduce((sum, d) => {
+      if (d === null) return sum;
+      const info = calendar[toDateKey(new Date(year, month, d))];
+      return sum + (info ? info.pnl : 0);
+    }, 0);
+    const days = week.filter((d) => d !== null && calendar[toDateKey(new Date(year, month, d))]).length;
+    return { pnl, days };
+  };
 
   return (
-    <div className="p-5">
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold">Monthly stats:</span>
-          {hasData ? (
-            <span
-              className={`text-sm font-semibold px-2.5 py-1 rounded-full ${
-                monthTotal >= 0 ? "bg-[#DCFCE7] text-[#16A34A]" : "bg-[#FEE2E2] text-[#DC2626]"
-              }`}
-            >
-              {monthTotal >= 0 ? "+" : ""}
-              {currency(monthTotal)}
-            </span>
-          ) : (
-            <span className="text-sm font-semibold text-[#B2B6C4]">--</span>
-          )}
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setCursor(new Date(year, month - 1, 1))}
-            className="w-7 h-7 rounded-full hover:bg-[#F5F6FA] text-[#8A8FA3] text-sm"
-          >
-            ←
-          </button>
-          <span className="text-sm font-medium w-32 text-center">
+    <div className="p-4 sm:p-5">
+      {/* Header */}
+      <div className="flex items-center gap-3 flex-wrap mb-4">
+        <div className="flex items-center gap-1">
+          <IconArrow onClick={() => setCursor(new Date(year, month - 1, 1))} label="Previous month">
+            <ChevronLeft size={17} />
+          </IconArrow>
+          <span className="text-lg font-semibold w-40 text-center">
             {firstDay.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
           </span>
-          <button
-            onClick={() => setCursor(new Date(year, month + 1, 1))}
-            className="w-7 h-7 rounded-full hover:bg-[#F5F6FA] text-[#8A8FA3] text-sm"
-          >
-            →
-          </button>
-          <span className="text-[11px] font-medium text-[#8A8FA3] bg-[#F5F6FA] rounded-full px-3 py-1">
-            {hasData ? `${tradingDays} days` : "-- days"}
-          </span>
+          <IconArrow onClick={() => setCursor(new Date(year, month + 1, 1))} label="Next month">
+            <ChevronRight size={17} />
+          </IconArrow>
         </div>
+        <button
+          onClick={() => setCursor(new Date(now.getFullYear(), now.getMonth(), 1))}
+          className={`h-9 px-4 rounded-lg text-sm font-medium border transition-colors ${
+            isThisMonth
+              ? "bg-[#4ADE80]/10 border-[#4ADE80]/30 text-[#4ADE80]"
+              : "bg-[#17181B] border-[#232529] text-[#C9CBD1] hover:border-[#2E3137]"
+          }`}
+        >
+          This month
+        </button>
       </div>
 
-      <div className="grid grid-cols-8 gap-1.5 mb-1.5">
-        {WEEKDAYS.map((w) => (
-          <div key={w} className="text-center text-[11px] font-medium text-[#8A8FA3] py-1.5">
-            {w}
-          </div>
-        ))}
-        <div className="text-center text-[11px] font-medium text-[#8A8FA3] py-1.5">Week</div>
+      {/* Monthly stats */}
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <span className="text-[11px] uppercase tracking-wider text-[#6E7076]">Monthly stats</span>
+        <span
+          className={`text-sm font-semibold px-2.5 py-1 rounded-md border ${
+            !hasData
+              ? "bg-[#17181B] border-[#232529] text-[#4A4D53]"
+              : monthTotal >= 0
+              ? "bg-[#4ADE80]/10 border-[#4ADE80]/25 text-[#4ADE80]"
+              : "bg-[#F87171]/10 border-[#F87171]/25 text-[#F87171]"
+          }`}
+        >
+          {hasData ? `${monthTotal >= 0 ? "" : "-"}${currency(Math.abs(monthTotal))}` : "--"}
+        </span>
+        <span className="text-sm font-medium px-2.5 py-1 rounded-md bg-[#17181B] border border-[#232529] text-[#C9CBD1]">
+          {tradingDays} day{tradingDays === 1 ? "" : "s"}
+        </span>
       </div>
 
-      {weeks.map((week, wi) => {
-        const weekPnl = week.reduce((sum, d) => {
-          if (d === null) return sum;
-          const info = calendar[toDateKey(new Date(year, month, d))];
-          return sum + (info ? info.pnl : 0);
-        }, 0);
-        const weekDaysTraded = week.filter(
-          (d) => d !== null && calendar[toDateKey(new Date(year, month, d))]
-        ).length;
-        const weekHasData = weekDaysTraded > 0;
+      {/* Weekday header */}
+      <div className="flex gap-1.5 mb-1.5">
+        <div className="grid grid-cols-7 gap-1.5 flex-1">
+          {WEEKDAYS.map((w) => (
+            <div
+              key={w}
+              className="rounded-lg border border-[#1D1F23] bg-[#0F1012] py-2 text-center text-xs font-medium text-[#6E7076]"
+            >
+              {w}
+            </div>
+          ))}
+        </div>
+        <div className="hidden md:block w-[112px] shrink-0" />
+      </div>
 
-        return (
-          <div key={wi} className="grid grid-cols-8 gap-1.5 mb-1.5 last:mb-0">
-            {week.map((d, i) => {
-              if (d === null) return <div key={i} className="aspect-[4/5] sm:aspect-square" />;
+      {/* Weeks */}
+      <div className="space-y-1.5">
+        {weeks.map((week, wi) => {
+          const { pnl: weekPnl, days: weekDaysTraded } = weekTotals(week);
 
-              const info = calendar[toDateKey(new Date(year, month, d))];
-              const hasTrades = !!info;
-              const win = hasTrades && info.pnl >= 0;
-              const winRate = hasTrades ? (info.wins / info.count) * 100 : null;
+          return (
+            <div key={wi} className="flex gap-1.5">
+              <div className="grid grid-cols-7 gap-1.5 flex-1">
+                {week.map((d, i) => {
+                  if (d === null)
+                    return <div key={i} className="min-h-[74px] sm:min-h-[104px] rounded-lg" />;
 
-              return (
-                <div
-                  key={i}
-                  className={`aspect-[4/5] sm:aspect-square rounded-lg p-1.5 sm:p-2 flex flex-col justify-between ${
-                    hasTrades ? (win ? "bg-[#DCFCE7]" : "bg-[#FEE2E2]") : "bg-[#F9F9FB]"
+                  const key = toDateKey(new Date(year, month, d));
+                  const info = calendar[key];
+                  const traded = !!info;
+                  const flat = traded && info.pnl === 0;
+                  const win = traded && info.pnl > 0;
+                  const winRate = traded ? (info.wins / info.count) * 100 : null;
+
+                  const tone = !traded
+                    ? "bg-[#0F1012] border-[#1A1C1F]"
+                    : flat
+                    ? "bg-[#60A5FA]/10 border-[#60A5FA]/25"
+                    : win
+                    ? "bg-[#4ADE80]/10 border-[#4ADE80]/25"
+                    : "bg-[#F87171]/10 border-[#F87171]/25";
+
+                  return (
+                    <div
+                      key={i}
+                      className={`relative min-h-[74px] sm:min-h-[104px] rounded-lg border p-1.5 sm:p-2 flex flex-col ${tone} ${
+                        key === todayKey ? "ring-1 ring-[#4ADE80]/60" : ""
+                      }`}
+                    >
+                      <span
+                        className={`text-[11px] sm:text-xs self-end ${
+                          traded ? "text-[#C9CBD1]" : "text-[#4A4D53]"
+                        }`}
+                      >
+                        {d}
+                      </span>
+
+                      {traded && (
+                        <div className="mt-auto text-right leading-tight">
+                          <p
+                            className={`text-[12px] sm:text-[15px] font-bold whitespace-nowrap ${
+                              flat ? "text-[#C9CBD1]" : win ? "text-[#4ADE80]" : "text-[#F87171]"
+                            }`}
+                          >
+                            {info.pnl < 0 ? "-" : ""}
+                            {currency(Math.abs(info.pnl))}
+                          </p>
+                          <p className="text-[10px] sm:text-[11px] text-[#8A8D94]">
+                            {info.count} trade{info.count > 1 ? "s" : ""}
+                          </p>
+                          <p className="text-[10px] sm:text-[11px] text-[#6E7076] hidden sm:block">
+                            {winRate.toFixed(2)}%
+                          </p>
+                        </div>
+                      )}
+
+                      {traded && info.notes > 0 && (
+                        <span
+                          title={`${info.notes} note${info.notes > 1 ? "s" : ""}`}
+                          className="absolute bottom-1.5 right-2 w-1.5 h-1.5 rounded-full bg-[#4ADE80]"
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Weekly summary card */}
+              <div className="hidden md:flex w-[112px] shrink-0 rounded-xl border border-[#1D1F23] bg-[#0F1012] flex-col items-center justify-center text-center px-2 py-3">
+                <p className="text-[11px] text-[#6E7076]">Week {wi + 1}</p>
+                <p
+                  className={`text-[15px] font-bold mt-0.5 whitespace-nowrap ${
+                    weekDaysTraded === 0
+                      ? "text-[#4A4D53]"
+                      : weekPnl > 0
+                      ? "text-[#4ADE80]"
+                      : weekPnl < 0
+                      ? "text-[#F87171]"
+                      : "text-[#C9CBD1]"
                   }`}
                 >
-                  <span className={`text-[10px] sm:text-xs self-end ${hasTrades ? "text-[#1B1D28]" : "text-[#B2B6C4]"}`}>
-                    {d}
-                  </span>
-                  {hasTrades && (
-                    <div className="leading-tight">
-                      <p className={`text-[10px] sm:text-sm font-semibold ${win ? "text-[#16A34A]" : "text-[#DC2626]"}`}>
-                        {win ? "+" : ""}
-                        {currency(info.pnl)}
-                      </p>
-                      <p className="text-[8px] sm:text-[10px] text-[#8A8FA3] hidden sm:block">
-                        {info.count} trade{info.count > 1 ? "s" : ""}
-                      </p>
-                      <p className="text-[8px] sm:text-[10px] text-[#8A8FA3] hidden sm:block">{winRate.toFixed(0)}%</p>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            <div
-              className={`aspect-[4/5] sm:aspect-square rounded-lg p-1.5 sm:p-2 flex flex-col items-center justify-center text-center ${
-                weekHasData ? "bg-[#EEEBFD]" : "bg-[#F9F9FB]"
-              }`}
-            >
-              {weekHasData ? (
-                <>
-                  <p className={`text-[10px] sm:text-sm font-semibold ${weekPnl >= 0 ? "text-[#16A34A]" : "text-[#DC2626]"}`}>
-                    {weekPnl >= 0 ? "+" : ""}
-                    {currency(weekPnl)}
-                  </p>
-                  <p className="text-[8px] sm:text-[10px] text-[#8A8FA3] hidden sm:block">
-                    {weekDaysTraded} day{weekDaysTraded > 1 ? "s" : ""}
-                  </p>
-                </>
-              ) : (
-                <span className="text-[9px] text-[#D0D3DC]">--</span>
-              )}
+                  {weekDaysTraded === 0 ? "$0" : `${weekPnl < 0 ? "-" : ""}${currency(Math.abs(weekPnl))}`}
+                </p>
+                <span className="mt-1.5 text-[11px] text-[#6E7076] bg-[#17181B] border border-[#232529] rounded-full px-2 py-0.5">
+                  {weekDaysTraded} day{weekDaysTraded === 1 ? "" : "s"}
+                </span>
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
+
+      {/* Weekly totals on small screens */}
+      <div className="md:hidden mt-3 grid grid-cols-2 gap-1.5">
+        {weeks.map((week, wi) => {
+          const { pnl: weekPnl, days: weekDaysTraded } = weekTotals(week);
+          return (
+            <div
+              key={wi}
+              className="rounded-xl border border-[#1D1F23] bg-[#0F1012] px-3 py-2 flex items-center justify-between"
+            >
+              <span className="text-[11px] text-[#6E7076]">Week {wi + 1}</span>
+              <span
+                className={`text-sm font-bold ${
+                  weekDaysTraded === 0
+                    ? "text-[#4A4D53]"
+                    : weekPnl > 0
+                    ? "text-[#4ADE80]"
+                    : weekPnl < 0
+                    ? "text-[#F87171]"
+                    : "text-[#C9CBD1]"
+                }`}
+              >
+                {weekDaysTraded === 0 ? "$0" : `${weekPnl < 0 ? "-" : ""}${currency(Math.abs(weekPnl))}`}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
+  );
+}
+
+function IconArrow({ onClick, children, label }) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6E7076] hover:bg-[#17181B] hover:text-white transition-colors"
+    >
+      {children}
+    </button>
   );
 }
 
 function chunkIntoWeeks(cells) {
   const weeks = [];
-  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  for (let i = 0; i < cells.length; i += 7) {
+    const week = cells.slice(i, i + 7);
+    while (week.length < 7) week.push(null); // pad trailing week so columns stay aligned
+    weeks.push(week);
+  }
   return weeks;
+}
+
+/* ------------------------------------------------------------------
+   Shared components
+   ------------------------------------------------------------------ */
+function RailButton({ icon: Icon, active }) {
+  return (
+    <button
+      className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+        active
+          ? "bg-[#4ADE80]/10 border border-[#4ADE80]/25 text-[#4ADE80]"
+          : "text-[#5A5D63] hover:bg-[#17181B] hover:text-[#C9CBD1]"
+      }`}
+    >
+      <Icon size={17} />
+    </button>
+  );
+}
+
+function Select({ value, onChange, children, label }) {
+  return (
+    <select
+      aria-label={label}
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="h-9 pl-3.5 pr-8 rounded-lg bg-[#17181B] border border-[#232529] text-xs font-medium text-[#C9CBD1] hover:border-[#2E3137] focus:outline-none focus:ring-2 focus:ring-[#4ADE80]/25 appearance-none bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%2210%22 viewBox=%220 0 10 10%22><path d=%22M2 4l3 3 3-3%22 fill=%22none%22 stroke=%22%236E7076%22 stroke-width=%221.4%22/></svg>')] bg-no-repeat bg-[right_0.6rem_center]"
+    >
+      {children}
+    </select>
+  );
+}
+
+function Card({ title, children, className = "", noPad }) {
+  return (
+    <div className={`bg-[#121316] rounded-2xl border border-[#232529] ${className}`}>
+      {title && (
+        <div className="px-5 pt-5 pb-1">
+          <h2 className="text-[15px] font-semibold">{title}</h2>
+        </div>
+      )}
+      <div className={noPad ? "" : title ? "p-5 pt-3" : "p-4"}>{children}</div>
+    </div>
+  );
+}
+
+function Label({ children }) {
+  return (
+    <p className="text-[11px] uppercase tracking-wider text-[#6E7076] font-medium">{children}</p>
+  );
+}
+
+function LegendDot({ color, children }) {
+  return (
+    <span className="flex items-center gap-1.5 text-xs text-[#8A8D94]">
+      <span className="w-2 h-2 rounded-full" style={{ background: color }} />
+      {children}
+    </span>
+  );
+}
+
+function EmptyState({ text, hint }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-14 text-center">
+      <div className="w-14 h-14 rounded-full bg-[#4ADE80]/8 border border-[#4ADE80]/20 flex items-center justify-center mb-3">
+        <Plus size={20} className="text-[#4ADE80]" />
+      </div>
+      <p className="text-sm text-[#C9CBD1]">{text}</p>
+      <p className="text-xs text-[#6E7076] mt-0.5 max-w-[220px]">{hint}</p>
+    </div>
+  );
+}
+
+function Gauge({ counts, show, noun = "trades" }) {
+  const r = 26;
+  const len = Math.PI * r;
+  const total = counts.wins + counts.flats + counts.losses;
+  const segs = [
+    { v: counts.wins, c: GREEN, label: `winning ${noun}` },
+    { v: counts.flats, c: FLAT, label: `breakeven ${noun}` },
+    { v: counts.losses, c: RED, label: `losing ${noun}` },
+  ];
+
+  let offset = 0;
+  return (
+    <div className="shrink-0 flex flex-col items-center">
+      <svg width="86" height="48" viewBox="0 0 86 48">
+        <path
+          d="M 17 42 A 26 26 0 0 1 69 42"
+          fill="none"
+          stroke="#232529"
+          strokeWidth="6"
+          strokeLinecap="round"
+        />
+        {show &&
+          total > 0 &&
+          segs.map((s, i) => {
+            const seg = (s.v / total) * len;
+            const el =
+              s.v > 0 ? (
+                <path
+                  key={i}
+                  d="M 17 42 A 26 26 0 0 1 69 42"
+                  fill="none"
+                  stroke={s.c}
+                  strokeWidth="6"
+                  strokeDasharray={`${Math.max(seg - 1.5, 0)} ${len}`}
+                  strokeDashoffset={-offset}
+                />
+              ) : null;
+            offset += seg;
+            return el;
+          })}
+      </svg>
+
+      {/* win · breakeven · loss counts, sitting under the arc */}
+      <div className=" flex items-center gap-1">
+        {segs.map((s, i) => (
+          <span
+            key={i}
+            title={s.label}
+            className="text-[11px] leading-none px-2 py-[3px] rounded-md border"
+            style={{
+              color: show ? s.c : "#4A4D53",
+              background: show ? `${s.c}14` : "#17181B",
+              borderColor: show ? `${s.c}40` : "#232529",
+            }}
+          >
+            {show ? s.v : "-"}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Donut({ win, loss, show }) {
+  const r = 22;
+  const c = 2 * Math.PI * r;
+  const total = win + loss;
+  const winLen = total ? (win / total) * c : 0;
+  return (
+    <svg width="65" height="65" viewBox="0 0 60 60" className="shrink-0 -rotate-90">
+      <circle cx="30" cy="30" r={r} fill="none" stroke="#232529" strokeWidth="6" />
+      {show && total > 0 && (
+        <>
+          <circle cx="30" cy="30" r={r} fill="none" stroke={RED} strokeWidth="6" />
+          <circle
+            cx="30"
+            cy="30"
+            r={r}
+            fill="none"
+            stroke={GREEN}
+            strokeWidth="6"
+            strokeDasharray={`${winLen} ${c}`}
+          />
+        </>
+      )}
+    </svg>
+  );
+}
+
+function SplitBar({ avgWin, avgLoss, show }) {
+  const total = avgWin + avgLoss;
+  const winPct = show && total > 0 ? (avgWin / total) * 100 : 50;
+  return (
+    <div className="flex-1 min-w-0">
+      <div className="h-2 rounded-full bg-[#232529] overflow-hidden flex">
+        {show && (
+          <>
+            <div className="h-full" style={{ width: `${winPct}%`, background: GREEN }} />
+            <div className="h-full" style={{ width: `${100 - winPct}%`, background: RED }} />
+          </>
+        )}
+      </div>
+      <div className="flex items-center justify-between mt-1.5 text-xs font-medium">
+        <span className="text-[#4ADE80]">{show ? currency(avgWin) : "--"}</span>
+        <span className="text-[#F87171]">{show ? `-${currency(avgLoss)}` : "--"}</span>
+      </div>
+    </div>
+  );
+}
+
+function ScoreRadar({ parts, score, show }) {
+  const data = Object.entries(parts).map(([subject, value]) => ({ subject, value: show ? value : 0 }));
+
+  return (
+    <div>
+      <div className="h-[186px] -mx-2">
+        <ResponsiveContainer width="100%" height="100%">
+          <RadarChart data={data} outerRadius="72%">
+            <PolarGrid stroke="#232529" gridType="polygon" />
+            <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: "#6E7076" }} tickLine={false} />
+            <Radar
+              dataKey="value"
+              stroke={GREEN}
+              strokeWidth={1.5}
+              fill={GREEN}
+              fillOpacity={show ? 0.22 : 0}
+              dot={show ? { r: 2.5, fill: GREEN, stroke: "none" } : false}
+              isAnimationActive={false}
+            />
+          </RadarChart>
+        </ResponsiveContainer>
+      </div>
+
+      <div className="mt-2 pt-3 border-t border-[#1D1F23]">
+        <div className="flex items-baseline justify-between">
+          <Label>Your score</Label>
+          <span className="text-lg font-semibold">{show ? score.toFixed(2) : "--"}</span>
+        </div>
+        <div className="mt-2 relative h-2 rounded-full bg-[#232529]">
+          <div
+            className="absolute left-0 top-0 h-full rounded-full bg-[#4ADE80]"
+            style={{ width: `${show ? clamp(score) : 0}%` }}
+          />
+          {show && (
+            <span
+              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-[#0A0A0B] border-2 border-[#4ADE80]"
+              style={{ left: `${clamp(score)}%` }}
+            />
+          )}
+        </div>
+        <div className="flex justify-between mt-1 text-[10px] text-[#4A4D53]">
+          {[0, 20, 40, 60, 80, 100].map((n) => (
+            <span key={n}>{n}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------
+   Add entry modal
+   ------------------------------------------------------------------ */
+function AddEntryModal({ onAdd, onClose }) {
+  const [date, setDate] = useState(toDateKey(new Date()));
+  const [symbol, setSymbol] = useState("");
+  const [pnl, setPnl] = useState("");
+  const [note, setNote] = useState("");
+
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    const value = parseFloat(pnl);
+    if (Number.isNaN(value)) return;
+    onAdd({ date, symbol: symbol.trim().toUpperCase(), pnl: value, note: note.trim() });
+  }
+
+  const field =
+    "w-full bg-[#0D0E10] border border-[#232529] rounded-lg px-3 py-2 text-sm text-white placeholder-[#4A4D53] focus:outline-none focus:border-[#4ADE80]/50 focus:ring-2 focus:ring-[#4ADE80]/15 [color-scheme:dark]";
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-[#121316] border border-[#232529] rounded-2xl w-full max-w-sm p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-semibold">Add entry</h3>
+          <button onClick={onClose} aria-label="Close" className="text-[#6E7076] hover:text-white">
+            <X size={18} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <label className="text-[11px] uppercase tracking-wider text-[#6E7076] block mb-1">Date</label>
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={field} required />
+          </div>
+          <div>
+            <label className="text-[11px] uppercase tracking-wider text-[#6E7076] block mb-1">
+              Symbol <span className="normal-case tracking-normal text-[#4A4D53]">optional</span>
+            </label>
+            <input
+              type="text"
+              value={symbol}
+              onChange={(e) => setSymbol(e.target.value)}
+              placeholder="NAS100, XAUUSD, ES..."
+              className={field}
+            />
+          </div>
+          <div>
+            <label className="text-[11px] uppercase tracking-wider text-[#6E7076] block mb-1">P&L ($)</label>
+            <input
+              type="number"
+              step="0.01"
+              value={pnl}
+              onChange={(e) => setPnl(e.target.value)}
+              placeholder="e.g. 150 or -80"
+              className={field}
+              required
+            />
+            <p className="text-[11px] text-[#4A4D53] mt-1">Use a negative number for a loss.</p>
+          </div>
+          <div>
+            <label className="text-[11px] uppercase tracking-wider text-[#6E7076] block mb-1">
+              Note <span className="normal-case tracking-normal text-[#4A4D53]">optional</span>
+            </label>
+            <input
+              type="text"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Setup, mistake, mood..."
+              className={field}
+            />
+          </div>
+          <button
+            type="submit"
+            className="w-full bg-[#4ADE80] hover:bg-[#3ECF74] text-[#08130C] rounded-lg py-2.5 text-sm font-semibold mt-2 transition-colors"
+          >
+            Save entry
+          </button>
+        </form>
+      </div>
+    </div>
+  );
 }

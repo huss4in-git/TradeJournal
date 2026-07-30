@@ -564,6 +564,7 @@ export default function TradingJournalDashboard() {
             <div className="space-y-3">
               <TradesPanel trades={visible} onDelete={deleteEntry} />
 
+              <div className="hidden xl:block">
               <Card title="Account balance">
                 {hasData ? (
                   <>
@@ -634,6 +635,7 @@ export default function TradingJournalDashboard() {
                   <EmptyState text="No balance history" hint="Balance is starting equity plus logged P&L" />
                 )}
               </Card>
+              </div>
             </div>
 
             <div className="xl:col-span-2 order-first xl:order-none">

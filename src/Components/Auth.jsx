@@ -52,7 +52,7 @@ export default function Auth() {
   }
 
   const field =
-    "w-full bg-[#0D0E10] border border-[#232529] rounded-xl px-4 py-3 text-sm text-white placeholder-[#4A4D53] focus:outline-none focus:border-[#4ADE80]/50 focus:ring-2 focus:ring-[#4ADE80]/15 transition";
+    "w-full bg-[#0D0E10] border border-[#232529] rounded-xl px-4 py-3 text-base sm:text-sm text-white placeholder-[#4A4D53] focus:outline-none focus:border-[#4ADE80]/50 focus:ring-2 focus:ring-[#4ADE80]/15 transition";
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] text-white font-sans flex flex-col items-center justify-center px-4 py-10">
@@ -110,8 +110,13 @@ export default function Auth() {
                   </label>
                   <input
                     id="email"
+                    name="email"
                     type="email"
-                    autoComplete="email"
+                    autoComplete="username"
+                    inputMode="email"
+                    autoCapitalize="none"
+                    autoCorrect="off"
+                    spellCheck={false}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.com"
@@ -127,6 +132,7 @@ export default function Auth() {
                   <div className="relative">
                     <input
                       id="password"
+                      name="password"
                       type={showPassword ? "text" : "password"}
                       autoComplete={isSignUp ? "new-password" : "current-password"}
                       value={password}

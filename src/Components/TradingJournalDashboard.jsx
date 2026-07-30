@@ -1084,7 +1084,7 @@ function Select({ value, onChange, children, label }) {
       aria-label={label}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="h-9 pl-3.5 pr-8 rounded-lg bg-[#17181B] border border-[#232529] text-xs font-medium text-[#C9CBD1] hover:border-[#2E3137] focus:outline-none focus:ring-2 focus:ring-[#4ADE80]/25 appearance-none bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%2210%22 viewBox=%220 0 10 10%22><path d=%22M2 4l3 3 3-3%22 fill=%22none%22 stroke=%22%236E7076%22 stroke-width=%221.4%22/></svg>')] bg-no-repeat bg-[right_0.6rem_center]"
+      className="h-9 pl-3.5 pr-8 rounded-lg bg-[#17181B] border border-[#232529] text-base sm:text-xs font-medium text-[#C9CBD1] hover:border-[#2E3137] focus:outline-none focus:ring-2 focus:ring-[#4ADE80]/25 appearance-none bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%2210%22 viewBox=%220 0 10 10%22><path d=%22M2 4l3 3 3-3%22 fill=%22none%22 stroke=%22%236E7076%22 stroke-width=%221.4%22/></svg>')] bg-no-repeat bg-[right_0.6rem_center]"
     >
       {children}
     </select>
@@ -1333,7 +1333,7 @@ function EntryModal({ entry, onSave, onClose }) {
   }
 
   const field =
-    "w-full bg-[#0D0E10] border border-[#232529] rounded-lg px-3 py-2 text-sm text-white placeholder-[#4A4D53] focus:outline-none focus:border-[#4ADE80]/50 focus:ring-2 focus:ring-[#4ADE80]/15 [color-scheme:dark]";
+    "w-full bg-[#0D0E10] border border-[#232529] rounded-lg px-3 py-2 text-base sm:text-sm text-white placeholder-[#4A4D53] focus:outline-none focus:border-[#4ADE80]/50 focus:ring-2 focus:ring-[#4ADE80]/15 [color-scheme:dark]";
   const labelCls = "text-[11px] uppercase tracking-wider text-[#6E7076] block mb-1";
 
   return (

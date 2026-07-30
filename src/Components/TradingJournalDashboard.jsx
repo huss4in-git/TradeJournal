@@ -31,6 +31,7 @@ import {
   TrendingUp,
   Wallet,
   Menu,
+  LogOut,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -173,7 +174,7 @@ function buildDailySeries(trades) {
 
 /* ------------------------------------------------------------------ */
 
-export default function TradingJournalDashboard() {
+export default function TradingJournalDashboard({ session }) {
   const [trades, setTrades] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [showForm, setShowForm] = useState(false);
@@ -311,8 +312,13 @@ export default function TradingJournalDashboard() {
           <button className="w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center hover:border-[#2E3137] transition-colors">
             <Bell size={15} className="text-[#8A8D94]" />
           </button>
-          <button className="w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center hover:border-[#2E3137] transition-colors">
-            <User size={15} className="text-[#8A8D94]" />
+          <button
+            onClick={() => supabase.auth.signOut()}
+            title={session?.user?.email ? `Sign out ${session.user.email}` : "Sign out"}
+            aria-label="Sign out"
+            className="w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center hover:border-[#F87171]/40 hover:text-[#F87171] text-[#8A8D94] transition-colors"
+          >
+            <LogOut size={15} />
           </button>
         </div>
       </div>

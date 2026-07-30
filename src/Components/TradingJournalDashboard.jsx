@@ -20,6 +20,7 @@ import {
   Bell,
   User,
   Plus,
+  Pencil,
   Trash2,
   X,
   LayoutGrid,
@@ -176,6 +177,7 @@ export default function TradingJournalDashboard() {
   const [trades, setTrades] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState(null);
   const [range, setRange] = useState("month");
   const [symbolFilter, setSymbolFilter] = useState("all");
 
@@ -242,19 +244,22 @@ export default function TradingJournalDashboard() {
     return [...trades].sort((a, b) => new Date(b.date) - new Date(a.date))[0].date;
   }, [trades]);
 
-  async function addEntry(entry) {
-    const { data, error } = await supabase
-      .from("manual_entries")
-      .insert({
-        entry_date: entry.date,
-        symbol: entry.symbol || null,
-        pnl: entry.gross,
-        commission: entry.commission,
-        swap: entry.swap,
-        note: entry.note || null,
-      })
-      .select()
-      .single();
+  // Handles both new entries and edits. `entry.id` present means update.
+  async function saveEntry(entry) {
+    const payload = {
+      entry_date: entry.date,
+      symbol: entry.symbol || null,
+      pnl: entry.gross,
+      commission: entry.commission,
+      swap: entry.swap,
+      note: entry.note || null,
+    };
+
+    const query = entry.id
+      ? supabase.from("manual_entries").update(payload).eq("id", entry.id)
+      : supabase.from("manual_entries").insert(payload);
+
+    const { data, error } = await query.select().single();
 
     if (error) {
       console.error("Failed to save entry:", error.message);
@@ -264,21 +269,22 @@ export default function TradingJournalDashboard() {
     const gross = Number(data.pnl);
     const commission = Number(data.commission ?? 0);
     const swap = Number(data.swap ?? 0);
+    const row = {
+      id: data.id,
+      date: data.entry_date,
+      symbol: data.symbol,
+      gross,
+      commission,
+      swap,
+      fees: commission + swap,
+      pnl: data.net_pnl != null ? Number(data.net_pnl) : gross + commission + swap,
+      note: data.note,
+    };
 
-    setTrades((prev) => [
-      ...prev,
-      {
-        id: data.id,
-        date: data.entry_date,
-        symbol: data.symbol,
-        gross,
-        commission,
-        swap,
-        fees: commission + swap,
-        pnl: data.net_pnl != null ? Number(data.net_pnl) : gross + commission + swap,
-        note: data.note,
-      },
-    ]);
+    setTrades((prev) =>
+      entry.id ? prev.map((t) => (t.id === row.id ? row : t)) : [...prev, row]
+    );
+    setEditing(null);
     setShowForm(false);
   }
 
@@ -562,7 +568,7 @@ export default function TradingJournalDashboard() {
           {/* Lower section */}
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-3 items-start">
             <div className="space-y-3">
-              <TradesPanel trades={visible} onDelete={deleteEntry} />
+              <TradesPanel trades={visible} onDelete={deleteEntry} onEdit={setEditing} />
 
               <div className="hidden xl:block">
               <Card title="Account balance">
@@ -647,7 +653,16 @@ export default function TradingJournalDashboard() {
         </main>
       </div>
 
-      {showForm && <AddEntryModal onAdd={addEntry} onClose={() => setShowForm(false)} />}
+      {(showForm || editing) && (
+        <EntryModal
+          entry={editing}
+          onSave={saveEntry}
+          onClose={() => {
+            setShowForm(false);
+            setEditing(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -664,7 +679,7 @@ const labelStyle = { color: "#6E7076", fontSize: 11 };
 /* ------------------------------------------------------------------
    Recent trades / All entries
    ------------------------------------------------------------------ */
-function TradesPanel({ trades, onDelete }) {
+function TradesPanel({ trades, onDelete, onEdit }) {
   const [tab, setTab] = useState("recent");
 
   const sorted = useMemo(
@@ -692,7 +707,7 @@ function TradesPanel({ trades, onDelete }) {
                 <th className="py-3 px-5 text-left font-medium">Close date</th>
                 <th className="py-3 px-4 text-left font-medium">Symbol</th>
                 <th className="py-3 px-5 text-right font-medium">Net P&L</th>
-                <th className="py-3 pr-4 w-8" />
+                <th className="py-3 pr-4 w-14" />
               </tr>
             </thead>
             <tbody>
@@ -708,7 +723,17 @@ function TradesPanel({ trades, onDelete }) {
                       year: "numeric",
                     })}
                   </td>
-                  <td className="py-3.5 px-4 text-[#E4E6EA]">{t.symbol || "—"}</td>
+                  <td className="py-3.5 px-4 text-[#E4E6EA]">
+                    <span>{t.symbol || "—"}</span>
+                    {t.note && (
+                      <span
+                        title={t.note}
+                        className="block text-[11px] text-[#6E7076] truncate max-w-[150px]"
+                      >
+                        {t.note}
+                      </span>
+                    )}
+                  </td>
                   <td
                     className={`py-3.5 px-5 text-right font-semibold ${
                       t.pnl >= 0 ? "text-[#4ADE80]" : "text-[#F87171]"
@@ -725,13 +750,22 @@ function TradesPanel({ trades, onDelete }) {
                     {currency(Math.abs(t.pnl))}
                   </td>
                   <td className="py-3.5 pr-4">
-                    <button
-                      onClick={() => onDelete(t.id)}
-                      aria-label="Delete entry"
-                      className="text-[#4A4D53] opacity-0 group-hover:opacity-100 focus:opacity-100 hover:text-[#F87171] transition"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    <div className="flex items-center gap-2.5 justify-end">
+                      <button
+                        onClick={() => onEdit(t)}
+                        aria-label="Edit entry"
+                        className="text-[#4A4D53] opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 hover:text-[#4ADE80] transition"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
+                        onClick={() => onDelete(t.id)}
+                        aria-label="Delete entry"
+                        className="text-[#4A4D53] opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 hover:text-[#F87171] transition"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -908,24 +942,24 @@ function MonthCalendar({ calendar, hasData }) {
                         {d}
                       </span>
 
-                     {traded && (
-  <div className="mt-auto text-right leading-tight min-w-0">
-    <p
-      className={`text-[10px] sm:text-[15px] font-bold truncate ${
-        flat ? "text-[#C9CBD1]" : win ? "text-[#4ADE80]" : "text-[#F87171]"
-      }`}
-      title={`${info.pnl < 0 ? "-" : ""}${currency(Math.abs(info.pnl))}`}
-    >
-      <span className="sm:hidden">{compact(info.pnl)}</span>
-      <span className="hidden sm:inline whitespace-nowrap">
-        {info.pnl < 0 ? "-" : ""}
-        {currency(Math.abs(info.pnl))}
-      </span>
-    </p>
-    <p className="text-[10px] sm:text-[11px] text-[#8A8D94]">
-      {info.count}
-      <span className="hidden sm:inline"> trade{info.count > 1 ? "s" : ""}</span>
-    </p>
+                      {traded && (
+                        <div className="mt-auto text-right leading-tight min-w-0">
+                          <p
+                            className={`text-[10px] sm:text-[15px] font-bold truncate ${
+                              flat ? "text-[#C9CBD1]" : win ? "text-[#4ADE80]" : "text-[#F87171]"
+                            }`}
+                            title={`${info.pnl < 0 ? "-" : ""}${currency(Math.abs(info.pnl))}`}
+                          >
+                            <span className="sm:hidden">{compact(info.pnl)}</span>
+                            <span className="hidden sm:inline whitespace-nowrap">
+                              {info.pnl < 0 ? "-" : ""}
+                              {currency(Math.abs(info.pnl))}
+                            </span>
+                          </p>
+                          <p className="text-[10px] sm:text-[11px] text-[#8A8D94]">
+                            {info.count}
+                            <span className="hidden sm:inline"> trade{info.count > 1 ? "s" : ""}</span>
+                          </p>
                           <p className="text-[10px] sm:text-[11px] text-[#6E7076] hidden sm:block">
                             {winRate.toFixed(2)}%
                           </p>
@@ -1254,13 +1288,16 @@ function ScoreRadar({ parts, score, show }) {
 /* ------------------------------------------------------------------
    Add entry modal
    ------------------------------------------------------------------ */
-function AddEntryModal({ onAdd, onClose }) {
-  const [date, setDate] = useState(toDateKey(new Date()));
-  const [symbol, setSymbol] = useState("");
-  const [gross, setGross] = useState("");
-  const [commission, setCommission] = useState("");
-  const [swap, setSwap] = useState("");
-  const [note, setNote] = useState("");
+function EntryModal({ entry, onSave, onClose }) {
+  const isEdit = !!entry;
+  const [date, setDate] = useState(entry?.date ?? toDateKey(new Date()));
+  const [symbol, setSymbol] = useState(entry?.symbol ?? "");
+  const [gross, setGross] = useState(entry ? String(entry.gross) : "");
+  const [commission, setCommission] = useState(
+    entry?.commission ? String(entry.commission) : ""
+  );
+  const [swap, setSwap] = useState(entry?.swap ? String(entry.swap) : "");
+  const [note, setNote] = useState(entry?.note ?? "");
 
   useEffect(() => {
     const onKey = (e) => e.key === "Escape" && onClose();
@@ -1278,7 +1315,8 @@ function AddEntryModal({ onAdd, onClose }) {
   function handleSubmit(e) {
     e.preventDefault();
     if (!grossValid) return;
-    onAdd({
+    onSave({
+      id: entry?.id,
       date,
       symbol: symbol.trim().toUpperCase(),
       gross: num(gross),
@@ -1296,7 +1334,7 @@ function AddEntryModal({ onAdd, onClose }) {
     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <div className="bg-[#121316] border border-[#232529] rounded-2xl w-full max-w-sm p-5 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-base font-semibold">Add entry</h3>
+          <h3 className="text-base font-semibold">{isEdit ? "Edit entry" : "Add entry"}</h3>
           <button onClick={onClose} aria-label="Close" className="text-[#6E7076] hover:text-white">
             <X size={18} />
           </button>
@@ -1391,7 +1429,7 @@ function AddEntryModal({ onAdd, onClose }) {
             type="submit"
             className="w-full bg-[#4ADE80] hover:bg-[#3ECF74] text-[#08130C] rounded-lg py-2.5 text-sm font-semibold mt-2 transition-colors"
           >
-            Save entry
+            {isEdit ? "Update entry" : "Save entry"}
           </button>
         </form>
       </div>

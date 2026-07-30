@@ -360,7 +360,7 @@ export default function TradingJournalDashboard({ session }) {
               </Select>
               <span className="h-9 inline-flex items-center gap-2 px-3.5 rounded-lg bg-[#4ADE80]/10 border border-[#4ADE80]/25 text-xs font-medium text-[#4ADE80]">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80]" />
-                Manual entries
+                Manual Entries
               </span>
             </div>
           </div>

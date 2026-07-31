@@ -32,6 +32,7 @@ import {
   Wallet,
   Menu,
   LogOut,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -66,6 +67,18 @@ const compact = (n) => {
 };
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+// Shown in the symbol dropdown before you've logged anything. Anything you
+// type that isn't here gets added to the list automatically once saved.
+const DEFAULT_SYMBOLS = [
+  "XAUUSD",
+  "NAS100",
+  "SP500",
+  "EURUSD",
+  "GBPUSD",
+  "WTI",
+  "BTCUSD",
+];
 
 const clamp = (n, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, n));
 
@@ -221,6 +234,13 @@ export default function TradingJournalDashboard({ session }) {
     [trades]
   );
 
+  // Your own symbols first, then the seed list — so what you actually
+  // trade sits at the top of the dropdown.
+  const symbolOptions = useMemo(
+    () => Array.from(new Set([...symbols, ...DEFAULT_SYMBOLS])),
+    [symbols]
+  );
+
   const visible = useMemo(() => {
     const now = new Date();
     let from = null;
@@ -360,7 +380,7 @@ export default function TradingJournalDashboard({ session }) {
               </Select>
               <span className="h-9 inline-flex items-center gap-2 px-3.5 rounded-lg bg-[#4ADE80]/10 border border-[#4ADE80]/25 text-xs font-medium text-[#4ADE80]">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80]" />
-                Manual Entries
+                Manual entries
               </span>
             </div>
           </div>
@@ -662,6 +682,7 @@ export default function TradingJournalDashboard({ session }) {
       {(showForm || editing) && (
         <EntryModal
           entry={editing}
+          symbolOptions={symbolOptions}
           onSave={saveEntry}
           onClose={() => {
             setShowForm(false);
@@ -1292,9 +1313,88 @@ function ScoreRadar({ parts, score, show }) {
 }
 
 /* ------------------------------------------------------------------
+   Symbol picker — a dropdown you can also type into. Free text wins,
+   so a pair that isn't listed yet just gets typed, and it shows up in
+   the list from the next entry onwards.
+   ------------------------------------------------------------------ */
+function SymbolInput({ value, onChange, options }) {
+  const [open, setOpen] = useState(false);
+
+  const matches = useMemo(() => {
+    const q = value.trim().toUpperCase();
+    if (!q) return options;
+    return options.filter((o) => o.includes(q));
+  }, [value, options]);
+
+  const exact = options.some((o) => o === value.trim().toUpperCase());
+
+  return (
+    <div className="relative">
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value.toUpperCase());
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        // Delay so a tap on an option registers before the list closes.
+        onBlur={() => setTimeout(() => setOpen(false), 120)}
+        placeholder="Pick one or type a new pair"
+        autoCapitalize="characters"
+        autoCorrect="off"
+        spellCheck={false}
+        className="w-full bg-[#0D0E10] border border-[#232529] rounded-lg pl-3 pr-9 py-2 text-base sm:text-sm text-white placeholder-[#4A4D53] focus:outline-none focus:border-[#4ADE80]/50 focus:ring-2 focus:ring-[#4ADE80]/15"
+      />
+
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-label="Show symbols"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          setOpen((v) => !v);
+        }}
+        className="absolute right-0 top-0 h-full px-3 flex items-center text-[#6E7076] hover:text-[#C9CBD1]"
+      >
+        <ChevronDown size={15} />
+      </button>
+
+      {open && matches.length > 0 && (
+        <ul className="absolute z-10 left-0 right-0 mt-1 max-h-44 overflow-y-auto rounded-lg border border-[#2A2C31] bg-[#17181B] shadow-xl py-1">
+          {matches.map((o) => (
+            <li key={o}>
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onChange(o);
+                  setOpen(false);
+                }}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-[#232529] transition-colors ${
+                  o === value ? "text-[#4ADE80]" : "text-[#C9CBD1]"
+                }`}
+              >
+                {o}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {value.trim() && !exact && (
+        <p className="text-[11px] text-[#4A4D53] mt-1">
+          New pair — it'll be in the list next time.
+        </p>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------
    Add entry modal
    ------------------------------------------------------------------ */
-function EntryModal({ entry, onSave, onClose }) {
+function EntryModal({ entry, onSave, onClose, symbolOptions = [] }) {
   const isEdit = !!entry;
   const [date, setDate] = useState(entry?.date ?? toDateKey(new Date()));
   const [symbol, setSymbol] = useState(entry?.symbol ?? "");
@@ -1354,13 +1454,7 @@ function EntryModal({ entry, onSave, onClose }) {
             <label className={labelCls}>
               Symbol <span className="normal-case tracking-normal text-[#4A4D53]">optional</span>
             </label>
-            <input
-              type="text"
-              value={symbol}
-              onChange={(e) => setSymbol(e.target.value)}
-              placeholder="NAS100, XAUUSD, ES..."
-              className={field}
-            />
+            <SymbolInput value={symbol} onChange={setSymbol} options={symbolOptions} />
           </div>
 
           <div>

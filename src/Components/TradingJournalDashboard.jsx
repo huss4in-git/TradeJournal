@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Logo from "./Logo";
 import {
   XAxis,
@@ -30,11 +30,11 @@ import {
   ClipboardList,
   TrendingUp,
   Wallet,
-  Menu,
   LogOut,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  CalendarDays,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -206,6 +206,23 @@ export default function TradingJournalDashboard({ session }) {
   const [editing, setEditing] = useState(null);
   const [range, setRange] = useState("month");
   const [symbolFilter, setSymbolFilter] = useState("all");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+
+  // Sticky offsets are driven by the real top bar height, published as a
+  // CSS variable. Hardcoding it causes a few pixels of jump on scroll.
+  const topBarRef = useRef(null);
+  useLayoutEffect(() => {
+    const el = topBarRef.current;
+    if (!el) return;
+    const publish = () =>
+      document.documentElement.style.setProperty("--topbar-h", `${el.offsetHeight}px`);
+    publish();
+    const ro = new ResizeObserver(publish);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -256,21 +273,43 @@ export default function TradingJournalDashboard({ session }) {
   const visible = useMemo(() => {
     const now = new Date();
     let from = null;
+    let to = null;
+
     if (range === "30d") from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29);
     if (range === "90d") from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 89);
     if (range === "month") from = new Date(now.getFullYear(), now.getMonth(), 1);
+    if (range === "custom") {
+      // Compare on the date key so timezones can't shift the boundary.
+      from = customFrom || null;
+      to = customTo || null;
+    }
 
     return trades.filter((t) => {
       if (symbolFilter !== "all" && t.symbol !== symbolFilter) return false;
+
+      if (range === "custom") {
+        if (from && t.date < from) return false;
+        if (to && t.date > to) return false;
+        return true;
+      }
+
       if (!from) return true;
       return new Date(t.date) >= from;
     });
-  }, [trades, range, symbolFilter]);
+  }, [trades, range, symbolFilter, customFrom, customTo]);
 
   const stats = useMemo(() => computeStats(visible), [visible]);
   const series = useMemo(() => buildDailySeries(visible), [visible]);
   const calendar = useMemo(() => groupByDay(visible), [visible]);
   const hasData = visible.length > 0;
+
+  const rangeLabel = {
+    month: "This month",
+    "30d": "Last 30 days",
+    "90d": "Last 90 days",
+    all: "All time",
+    custom: "Custom",
+  }[range];
 
   const lastEntry = useMemo(() => {
     if (!trades.length) return null;
@@ -333,11 +372,8 @@ export default function TradingJournalDashboard({ session }) {
   return (
     <div className="min-h-screen bg-[#0A0A0B] text-white font-sans">
       {/* Top bar */}
-      <div className="bg-[#0D0E10] border-b border-[#1D1F23] px-4 sm:px-6 py-3.5 flex items-center justify-between">
+      <div ref={topBarRef} className="sticky top-0 z-40 bg-[#0D0E10] border-b border-[#1D1F23] px-4 sm:px-6 py-3.5 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <button className="lg:hidden w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center">
-            <Menu size={16} className="text-[#8A8D94]" />
-          </button>
           <Logo />
         </div>
         <div className="flex items-center gap-2">
@@ -355,9 +391,28 @@ export default function TradingJournalDashboard({ session }) {
         </div>
       </div>
 
+      {/* Mobile header — sibling of the top bar so nothing interferes with
+          position: sticky (nesting it inside the flex row breaks it in Safari). */}
+      <div className="sm:hidden sticky top-[var(--topbar-h,64px)] z-30 bg-[#0A0A0B]/95 backdrop-blur border-b border-[#1D1F23] px-4 pt-6 pb-4 flex items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
+        <button
+          onClick={() => setShowFilters((v) => !v)}
+          aria-expanded={showFilters}
+          aria-label="Date range"
+          className={`h-9 inline-flex items-center gap-1.5 px-3 rounded-lg border text-xs font-medium transition-colors ${
+            showFilters
+              ? "bg-[#4ADE80]/10 border-[#4ADE80]/25 text-[#4ADE80]"
+              : "bg-[#17181B] border-[#232529] text-[#C9CBD1]"
+          }`}
+        >
+          <CalendarDays size={14} />
+          {rangeLabel}
+        </button>
+      </div>
+
       <div className="flex">
         {/* Icon rail */}
-        <nav className="hidden lg:flex w-16 shrink-0 flex-col items-center gap-1.5 py-5 bg-[#0D0E10] border-r border-[#1D1F23] min-h-[calc(100vh-61px)]">
+        <nav className="hidden lg:flex w-16 shrink-0 flex-col items-center gap-1.5 py-5 bg-[#0D0E10] border-r border-[#1D1F23] sticky top-[var(--topbar-h,64px)] h-[calc(100vh-var(--topbar-h,64px))] self-start">
           <RailButton icon={LayoutGrid} active />
           <RailButton icon={CandlestickChart} />
           <RailButton icon={NotebookPen} />
@@ -368,14 +423,20 @@ export default function TradingJournalDashboard({ session }) {
           <RailButton icon={Wallet} />
         </nav>
 
-        <main className="flex-1 min-w-0 px-4 sm:px-5 py-6">
+        <main className="flex-1 min-w-0 px-4 sm:px-5 pt-0 pb-6 sm:py-6">
           {/* Header row */}
-          <div className="flex items-center justify-between mb-1 flex-wrap gap-3">
+          <div className="hidden sm:flex items-center justify-between mb-1 flex-wrap gap-3">
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-              <p className="text-sm text-[#6E7076] mt-0.5">Performance metrics and trading history</p>
+              <p className="text-sm text-[#6E7076] mt-0.5">
+                Performance metrics and trading history
+              </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex h-9 items-center gap-2 px-3.5 rounded-lg bg-[#4ADE80]/10 border border-[#4ADE80]/25 text-xs font-medium text-[#4ADE80]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80]" />
+                Manual entries
+              </span>
               <Select value={symbolFilter} onChange={setSymbolFilter} label="Symbol">
                 <option value="all">All symbols</option>
                 {symbols.map((s) => (
@@ -384,23 +445,57 @@ export default function TradingJournalDashboard({ session }) {
                   </option>
                 ))}
               </Select>
-              <Select value={range} onChange={setRange} label="Date range">
-                <option value="all">All time</option>
-                <option value="month">This month</option>
-                <option value="30d">Last 30 days</option>
-                <option value="90d">Last 90 days</option>
-              </Select>
-              <span className="h-9 inline-flex items-center gap-2 px-3.5 rounded-lg bg-[#4ADE80]/10 border border-[#4ADE80]/25 text-xs font-medium text-[#4ADE80]">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80]" />
-                Manual entries
-              </span>
+              <RangeSelect
+                range={range}
+                setRange={setRange}
+                customFrom={customFrom}
+                setCustomFrom={setCustomFrom}
+                setCustomTo={setCustomTo}
+              />
             </div>
           </div>
 
-          <div className="h-px bg-[#1D1F23] my-4" />
+          {showFilters && (
+            <DateRangeSheet
+              range={range}
+              from={customFrom}
+              to={customTo}
+              onApply={(r, f, t) => {
+                setRange(r);
+                setCustomFrom(f);
+                setCustomTo(t);
+                setShowFilters(false);
+              }}
+              onClose={() => setShowFilters(false)}
+            />
+          )}
+
+          {range === "custom" && (
+            <div className="mt-3 hidden sm:flex items-center gap-2 flex-wrap">
+              <input
+                type="date"
+                value={customFrom}
+                max={customTo || undefined}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                aria-label="From date"
+                className="h-9 px-3 rounded-lg bg-[#17181B] border border-[#232529] text-base sm:text-xs font-medium text-[#C9CBD1] focus:outline-none focus:border-[#4ADE80]/50 [color-scheme:dark]"
+              />
+              <span className="text-xs text-[#6E7076]">to</span>
+              <input
+                type="date"
+                value={customTo}
+                min={customFrom || undefined}
+                onChange={(e) => setCustomTo(e.target.value)}
+                aria-label="To date"
+                className="h-9 px-3 rounded-lg bg-[#17181B] border border-[#232529] text-base sm:text-xs font-medium text-[#C9CBD1] focus:outline-none focus:border-[#4ADE80]/50 [color-scheme:dark]"
+              />
+            </div>
+          )}
+
+          <div className="hidden sm:block h-px bg-[#1D1F23] my-4" />
 
           {/* Meta row */}
-          <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap mt-3 sm:mt-0 mb-4">
             <p className="text-xs text-[#6E7076]">
               {lastEntry ? (
                 <>
@@ -950,7 +1045,7 @@ function MonthCalendar({ calendar, trades = [], hasData }) {
               <div className="grid grid-cols-7 gap-1 sm:gap-1.5 flex-1">
                 {week.map((d, i) => {
                   if (d === null)
-                    return <div key={i} className="min-h-[92px] sm:min-h-[104px] rounded-lg" />;
+                    return <div key={i} className="min-h-[74px] sm:min-h-[104px] rounded-lg" />;
 
                   const key = toDateKey(new Date(year, month, d));
                   const info = calendar[key];
@@ -979,7 +1074,7 @@ function MonthCalendar({ calendar, trades = [], hasData }) {
                           setOpenDay(key);
                         }
                       }}
-                      className={`relative min-h-[92px] sm:min-h-[104px] rounded-lg border p-1.5 sm:p-2 flex flex-col ${tone} ${
+                      className={`relative min-h-[74px] sm:min-h-[104px] rounded-lg border p-1.5 sm:p-2 flex flex-col ${tone} ${
                         traded ? "cursor-pointer hover:brightness-125 transition" : ""
                       } ${key === todayKey ? "ring-1 ring-[#4ADE80]/60" : ""}`}
                     >
@@ -1006,7 +1101,8 @@ function MonthCalendar({ calendar, trades = [], hasData }) {
                             </span>
                           </p>
                           <p className="text-[9px] sm:text-[11px] text-[#8A8D94] truncate">
-                            {info.count} trade{info.count > 1 ? "s" : ""}
+                            {info.count}
+                            <span className="hidden sm:inline"> trade{info.count > 1 ? "s" : ""}</span>
                           </p>
                           <p className="text-[9px] sm:text-[11px] text-[#6E7076] truncate hidden sm:block">
                             {winRate.toFixed(2)}%
@@ -1085,6 +1181,191 @@ function MonthCalendar({ calendar, trades = [], hasData }) {
           onClose={() => setOpenDay(null)}
         />
       )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------
+   Date range sheet — tap a start day, then an end day. Presets across
+   the top for the common cases.
+   ------------------------------------------------------------------ */
+const PRESETS = [
+  { id: "month", label: "This month" },
+  { id: "30d", label: "Last 30 days" },
+  { id: "90d", label: "Last 90 days" },
+  { id: "all", label: "All time" },
+];
+
+function DateRangeSheet({ range, from, to, onApply, onClose }) {
+  const [start, setStart] = useState(range === "custom" ? from : "");
+  const [end, setEnd] = useState(range === "custom" ? to : "");
+  const [cursor, setCursor] = useState(() => {
+    const base = start ? new Date(start) : new Date();
+    return new Date(base.getFullYear(), base.getMonth(), 1);
+  });
+
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const leading = new Date(year, month, 1).getDay();
+
+  const cells = [];
+  for (let i = 0; i < leading; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  // First tap sets the start and clears any end. Second tap sets the end,
+  // flipping the pair if you picked an earlier day.
+  function pick(key) {
+    if (!start || end) {
+      setStart(key);
+      setEnd("");
+    } else if (key < start) {
+      setEnd(start);
+      setStart(key);
+    } else {
+      setEnd(key);
+    }
+  }
+
+  const pretty = (k) =>
+    k
+      ? new Date(k).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : "—";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm bg-[#121316] border border-[#232529] rounded-2xl max-h-[85vh] overflow-y-auto"
+      >
+        <div className="flex items-center justify-between px-4 py-3.5 border-b border-[#1D1F23]">
+          <h3 className="text-base font-semibold">Date range</h3>
+          <button onClick={onClose} aria-label="Close" className="text-[#6E7076] hover:text-white">
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Presets */}
+        <div className="flex gap-1.5 px-4 pt-3 flex-wrap">
+          {PRESETS.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => onApply(p.id, "", "")}
+              className={`h-8 px-3 rounded-lg border text-xs font-medium transition-colors ${
+                range === p.id
+                  ? "bg-[#4ADE80]/10 border-[#4ADE80]/25 text-[#4ADE80]"
+                  : "bg-[#17181B] border-[#232529] text-[#C9CBD1]"
+              }`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Selected span */}
+        <div className="flex items-center justify-center gap-3 px-4 py-3.5">
+          <span className={`text-sm font-medium ${start ? "text-white" : "text-[#4A4D53]"}`}>
+            {pretty(start)}
+          </span>
+          <span className="text-[#4A4D53]">→</span>
+          <span className={`text-sm font-medium ${end ? "text-white" : "text-[#4A4D53]"}`}>
+            {pretty(end)}
+          </span>
+        </div>
+
+        {/* Month nav */}
+        <div className="flex items-center justify-between px-4 pb-2">
+          <IconArrow onClick={() => setCursor(new Date(year, month - 1, 1))} label="Previous month">
+            <ChevronLeft size={17} />
+          </IconArrow>
+          <span className="text-sm font-medium">
+            {cursor.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+          </span>
+          <IconArrow onClick={() => setCursor(new Date(year, month + 1, 1))} label="Next month">
+            <ChevronRight size={17} />
+          </IconArrow>
+        </div>
+
+        {/* Day grid */}
+        <div className="px-3 pb-3">
+          <div className="grid grid-cols-7 mb-1">
+            {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((w) => (
+              <div key={w} className="text-center text-[11px] text-[#6E7076] py-1.5">
+                {w}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-y-1">
+            {cells.map((d, i) => {
+              if (d === null) return <div key={i} className="h-10" />;
+
+              const key = toDateKey(new Date(year, month, d));
+              const isStart = key === start;
+              const isEnd = key === end;
+              const inRange = start && end && key > start && key < end;
+
+              return (
+                <div
+                  key={i}
+                  className={`h-10 flex items-center justify-center ${
+                    inRange ? "bg-[#4ADE80]/10" : ""
+                  } ${isStart && end ? "bg-gradient-to-r from-transparent to-[#4ADE80]/10" : ""} ${
+                    isEnd ? "bg-gradient-to-l from-transparent to-[#4ADE80]/10" : ""
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => pick(key)}
+                    className={`w-9 h-9 rounded-full text-sm transition-colors ${
+                      isStart || isEnd
+                        ? "bg-[#4ADE80] text-[#08130C] font-semibold"
+                        : inRange
+                        ? "text-[#C9CBD1]"
+                        : "text-[#C9CBD1] hover:bg-[#232529]"
+                    }`}
+                  >
+                    {d}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2 p-4 border-t border-[#1D1F23] sticky bottom-0 bg-[#121316]">
+          <button
+            onClick={() => {
+              setStart("");
+              setEnd("");
+            }}
+            className="flex-1 h-11 rounded-xl border border-[#232529] bg-[#17181B] text-sm font-medium text-[#C9CBD1]"
+          >
+            Clear
+          </button>
+          <button
+            disabled={!start || !end}
+            onClick={() => onApply("custom", start, end)}
+            className="flex-1 h-11 rounded-xl bg-[#4ADE80] disabled:opacity-40 disabled:cursor-not-allowed text-[#08130C] text-sm font-semibold"
+          >
+            Apply
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1252,6 +1533,30 @@ function RailButton({ icon: Icon, active }) {
     >
       <Icon size={17} />
     </button>
+  );
+}
+
+function RangeSelect({ range, setRange, customFrom, setCustomFrom, setCustomTo }) {
+  return (
+    <Select
+      value={range}
+      onChange={(v) => {
+        setRange(v);
+        if (v === "custom" && !customFrom) {
+          // Default a custom range to the month so far.
+          const now = new Date();
+          setCustomFrom(toDateKey(new Date(now.getFullYear(), now.getMonth(), 1)));
+          setCustomTo(toDateKey(now));
+        }
+      }}
+      label="Date range"
+    >
+      <option value="month">This month</option>
+      <option value="30d">Last 30 days</option>
+      <option value="90d">Last 90 days</option>
+      <option value="all">All time</option>
+      <option value="custom">Custom range…</option>
+    </Select>
   );
 }
 

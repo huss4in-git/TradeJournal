@@ -300,7 +300,14 @@ export default function TradingJournalDashboard({ session }) {
 
   const stats = useMemo(() => computeStats(visible), [visible]);
   const series = useMemo(() => buildDailySeries(visible), [visible]);
-  const calendar = useMemo(() => groupByDay(visible), [visible]);
+  // The calendar has its own month navigation, so it ignores the date range —
+  // otherwise stepping back a month would show an empty grid. Symbol filter
+  // still applies.
+  const calendarTrades = useMemo(
+    () => trades.filter((t) => symbolFilter === "all" || t.symbol === symbolFilter),
+    [trades, symbolFilter]
+  );
+  const calendar = useMemo(() => groupByDay(calendarTrades), [calendarTrades]);
   const hasData = visible.length > 0;
 
   const rangeLabel = {
@@ -377,14 +384,14 @@ export default function TradingJournalDashboard({ session }) {
           <Logo />
         </div>
         <div className="flex items-center gap-2">
-          <button className="w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center hover:border-[#2E3137] transition-colors">
+          <button className="w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center cursor-default hover:border-[#2E3137] transition-colors">
             <Bell size={15} className="text-[#8A8D94]" />
           </button>
           <button
             onClick={() => supabase.auth.signOut()}
             title={session?.user?.email ? `Sign out ${session.user.email}` : "Sign out"}
             aria-label="Sign out"
-            className="w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center hover:border-[#F87171]/40 hover:text-[#F87171] text-[#8A8D94] transition-colors"
+            className="w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center cursor-pointer hover:border-[#F87171]/40 hover:text-[#F87171] text-[#8A8D94] transition-colors"
           >
             <LogOut size={15} />
           </button>
@@ -399,7 +406,7 @@ export default function TradingJournalDashboard({ session }) {
           onClick={() => setShowFilters((v) => !v)}
           aria-expanded={showFilters}
           aria-label="Date range"
-          className={`h-9 inline-flex items-center gap-1.5 px-3 rounded-lg border text-xs font-medium transition-colors ${
+          className={`h-9 inline-flex items-center gap-1.5 px-3 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
             showFilters
               ? "bg-[#4ADE80]/10 border-[#4ADE80]/25 text-[#4ADE80]"
               : "bg-[#17181B] border-[#232529] text-[#C9CBD1]"
@@ -445,13 +452,18 @@ export default function TradingJournalDashboard({ session }) {
                   </option>
                 ))}
               </Select>
-              <RangeSelect
-                range={range}
-                setRange={setRange}
-                customFrom={customFrom}
-                setCustomFrom={setCustomFrom}
-                setCustomTo={setCustomTo}
-              />
+              <button
+                onClick={() => setShowFilters((v) => !v)}
+                aria-expanded={showFilters}
+                className={`h-9 inline-flex items-center gap-1.5 px-3.5 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
+                  showFilters
+                    ? "bg-[#4ADE80]/10 border-[#4ADE80]/25 text-[#4ADE80]"
+                    : "bg-[#17181B] border-[#232529] text-[#C9CBD1] hover:border-[#2E3137]"
+                }`}
+              >
+                <CalendarDays size={14} />
+                {rangeLabel}
+              </button>
             </div>
           </div>
 
@@ -468,28 +480,6 @@ export default function TradingJournalDashboard({ session }) {
               }}
               onClose={() => setShowFilters(false)}
             />
-          )}
-
-          {range === "custom" && (
-            <div className="mt-3 hidden sm:flex items-center gap-2 flex-wrap">
-              <input
-                type="date"
-                value={customFrom}
-                max={customTo || undefined}
-                onChange={(e) => setCustomFrom(e.target.value)}
-                aria-label="From date"
-                className="h-9 px-3 rounded-lg bg-[#17181B] border border-[#232529] text-base sm:text-xs font-medium text-[#C9CBD1] focus:outline-none focus:border-[#4ADE80]/50 [color-scheme:dark]"
-              />
-              <span className="text-xs text-[#6E7076]">to</span>
-              <input
-                type="date"
-                value={customTo}
-                min={customFrom || undefined}
-                onChange={(e) => setCustomTo(e.target.value)}
-                aria-label="To date"
-                className="h-9 px-3 rounded-lg bg-[#17181B] border border-[#232529] text-base sm:text-xs font-medium text-[#C9CBD1] focus:outline-none focus:border-[#4ADE80]/50 [color-scheme:dark]"
-              />
-            </div>
           )}
 
           <div className="hidden sm:block h-px bg-[#1D1F23] my-4" />
@@ -518,7 +508,7 @@ export default function TradingJournalDashboard({ session }) {
             </p>
             <button
               onClick={() => setShowForm(true)}
-              className="flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#4ADE80] text-[#08130C] text-sm font-semibold hover:bg-[#3ECF74] transition-colors"
+              className="flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#4ADE80] text-[#08130C] text-sm font-semibold cursor-pointer hover:bg-[#3ECF74] transition-colors"
             >
               <Plus size={15} />
               Add Entry
@@ -779,7 +769,7 @@ export default function TradingJournalDashboard({ session }) {
 
             <div className="xl:col-span-2 order-first xl:order-none">
               <Card noPad>
-                <MonthCalendar calendar={calendar} trades={visible} hasData={hasData} />
+                <MonthCalendar calendar={calendar} trades={calendarTrades} hasData={calendarTrades.length > 0} />
               </Card>
             </div>
           </div>
@@ -888,14 +878,14 @@ function TradesPanel({ trades, onDelete, onEdit }) {
                       <button
                         onClick={() => onEdit(t)}
                         aria-label="Edit entry"
-                        className="text-[#4A4D53] opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 hover:text-[#4ADE80] transition"
+                        className="text-[#4A4D53] opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 cursor-pointer hover:text-[#4ADE80] transition"
                       >
                         <Pencil size={14} />
                       </button>
                       <button
                         onClick={() => onDelete(t.id)}
                         aria-label="Delete entry"
-                        className="text-[#4A4D53] opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 hover:text-[#F87171] transition"
+                        className="text-[#4A4D53] opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 cursor-pointer hover:text-[#F87171] transition"
                       >
                         <Trash2 size={14} />
                       </button>
@@ -919,7 +909,7 @@ function Tab({ active, onClick, children }) {
   return (
     <button
       onClick={onClick}
-      className={`pb-3 text-[15px] font-medium border-b-2 -mb-px transition-colors ${
+      className={`pb-3 text-[15px] font-medium border-b-2 -mb-px cursor-pointer transition-colors ${
         active ? "text-[#4ADE80] border-[#4ADE80]" : "text-[#6E7076] border-transparent hover:text-[#C9CBD1]"
       }`}
     >
@@ -991,7 +981,7 @@ function MonthCalendar({ calendar, trades = [], hasData }) {
         </div>
         <button
           onClick={() => setCursor(new Date(now.getFullYear(), now.getMonth(), 1))}
-          className={`h-9 px-4 rounded-lg text-sm font-medium border transition-colors ${
+          className={`h-9 px-4 rounded-lg text-sm font-medium border cursor-pointer transition-colors ${
             isThisMonth
               ? "bg-[#4ADE80]/10 border-[#4ADE80]/30 text-[#4ADE80]"
               : "bg-[#17181B] border-[#232529] text-[#C9CBD1] hover:border-[#2E3137]"
@@ -1253,7 +1243,7 @@ function DateRangeSheet({ range, from, to, onApply, onClose }) {
       >
         <div className="flex items-center justify-between px-4 py-3.5 border-b border-[#1D1F23]">
           <h3 className="text-base font-semibold">Date range</h3>
-          <button onClick={onClose} aria-label="Close" className="text-[#6E7076] hover:text-white">
+          <button onClick={onClose} aria-label="Close" className="text-[#6E7076] cursor-pointer hover:text-white">
             <X size={18} />
           </button>
         </div>
@@ -1264,7 +1254,7 @@ function DateRangeSheet({ range, from, to, onApply, onClose }) {
             <button
               key={p.id}
               onClick={() => onApply(p.id, "", "")}
-              className={`h-8 px-3 rounded-lg border text-xs font-medium transition-colors ${
+              className={`h-8 px-3 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
                 range === p.id
                   ? "bg-[#4ADE80]/10 border-[#4ADE80]/25 text-[#4ADE80]"
                   : "bg-[#17181B] border-[#232529] text-[#C9CBD1]"
@@ -1330,7 +1320,7 @@ function DateRangeSheet({ range, from, to, onApply, onClose }) {
                   <button
                     type="button"
                     onClick={() => pick(key)}
-                    className={`w-9 h-9 rounded-full text-sm transition-colors ${
+                    className={`w-9 h-9 rounded-full text-sm cursor-pointer transition-colors ${
                       isStart || isEnd
                         ? "bg-[#4ADE80] text-[#08130C] font-semibold"
                         : inRange
@@ -1353,14 +1343,14 @@ function DateRangeSheet({ range, from, to, onApply, onClose }) {
               setStart("");
               setEnd("");
             }}
-            className="flex-1 h-11 rounded-xl border border-[#232529] bg-[#17181B] text-sm font-medium text-[#C9CBD1]"
+            className="flex-1 h-11 rounded-xl border border-[#232529] bg-[#17181B] text-sm font-medium text-[#C9CBD1] cursor-pointer"
           >
             Clear
           </button>
           <button
             disabled={!start || !end}
             onClick={() => onApply("custom", start, end)}
-            className="flex-1 h-11 rounded-xl bg-[#4ADE80] disabled:opacity-40 disabled:cursor-not-allowed text-[#08130C] text-sm font-semibold"
+            className="flex-1 h-11 rounded-xl bg-[#4ADE80] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed text-[#08130C] text-sm font-semibold"
           >
             Apply
           </button>
@@ -1415,7 +1405,7 @@ function DayDetailModal({ dateKey, trades, onClose }) {
           <button
             onClick={onClose}
             aria-label="Close"
-            className="text-[#6E7076] hover:text-white p-1 -mr-1"
+            className="text-[#6E7076] cursor-pointer hover:text-white p-1 -mr-1"
           >
             <X size={16} />
           </button>
@@ -1502,7 +1492,7 @@ function IconArrow({ onClick, children, label }) {
     <button
       onClick={onClick}
       aria-label={label}
-      className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6E7076] hover:bg-[#17181B] hover:text-white transition-colors"
+      className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6E7076] cursor-pointer hover:bg-[#17181B] hover:text-white transition-colors"
     >
       {children}
     </button>
@@ -1525,7 +1515,7 @@ function chunkIntoWeeks(cells) {
 function RailButton({ icon: Icon, active }) {
   return (
     <button
-      className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+      className={`w-10 h-10 rounded-xl flex items-center justify-center cursor-default transition-colors ${
         active
           ? "bg-[#4ADE80]/10 border border-[#4ADE80]/25 text-[#4ADE80]"
           : "text-[#5A5D63] hover:bg-[#17181B] hover:text-[#C9CBD1]"
@@ -1536,37 +1526,13 @@ function RailButton({ icon: Icon, active }) {
   );
 }
 
-function RangeSelect({ range, setRange, customFrom, setCustomFrom, setCustomTo }) {
-  return (
-    <Select
-      value={range}
-      onChange={(v) => {
-        setRange(v);
-        if (v === "custom" && !customFrom) {
-          // Default a custom range to the month so far.
-          const now = new Date();
-          setCustomFrom(toDateKey(new Date(now.getFullYear(), now.getMonth(), 1)));
-          setCustomTo(toDateKey(now));
-        }
-      }}
-      label="Date range"
-    >
-      <option value="month">This month</option>
-      <option value="30d">Last 30 days</option>
-      <option value="90d">Last 90 days</option>
-      <option value="all">All time</option>
-      <option value="custom">Custom range…</option>
-    </Select>
-  );
-}
-
 function Select({ value, onChange, children, label }) {
   return (
     <select
       aria-label={label}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="h-9 pl-3.5 pr-8 rounded-lg bg-[#17181B] border border-[#232529] text-base sm:text-xs font-medium text-[#C9CBD1] hover:border-[#2E3137] focus:outline-none focus:ring-2 focus:ring-[#4ADE80]/25 appearance-none bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%2210%22 viewBox=%220 0 10 10%22><path d=%22M2 4l3 3 3-3%22 fill=%22none%22 stroke=%22%236E7076%22 stroke-width=%221.4%22/></svg>')] bg-no-repeat bg-[right_0.6rem_center]"
+      className="h-9 pl-3.5 pr-8 rounded-lg bg-[#17181B] border border-[#232529] text-base sm:text-xs font-medium text-[#C9CBD1] cursor-pointer hover:border-[#2E3137] focus:outline-none focus:ring-2 focus:ring-[#4ADE80]/25 appearance-none bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%2210%22 viewBox=%220 0 10 10%22><path d=%22M2 4l3 3 3-3%22 fill=%22none%22 stroke=%22%236E7076%22 stroke-width=%221.4%22/></svg>')] bg-no-repeat bg-[right_0.6rem_center]"
     >
       {children}
     </select>
@@ -1816,7 +1782,7 @@ function SymbolInput({ value, onChange, options }) {
           e.preventDefault();
           setOpen((v) => !v);
         }}
-        className="absolute right-0 top-0 h-full px-3 flex items-center text-[#6E7076] hover:text-[#C9CBD1]"
+        className="absolute right-0 top-0 h-full px-3 flex items-center text-[#6E7076] cursor-pointer hover:text-[#C9CBD1]"
       >
         <ChevronDown size={15} />
       </button>
@@ -1832,7 +1798,7 @@ function SymbolInput({ value, onChange, options }) {
                   onChange(o);
                   setOpen(false);
                 }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-[#232529] transition-colors ${
+                className={`w-full text-left px-3 py-2 text-sm cursor-pointer hover:bg-[#232529] transition-colors ${
                   o === value ? "text-[#4ADE80]" : "text-[#C9CBD1]"
                 }`}
               >
@@ -1902,7 +1868,7 @@ function EntryModal({ entry, onSave, onClose, symbolOptions = [] }) {
       <div className="bg-[#121316] border border-[#232529] rounded-2xl w-full max-w-sm p-5 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold">{isEdit ? "Edit entry" : "Add entry"}</h3>
-          <button onClick={onClose} aria-label="Close" className="text-[#6E7076] hover:text-white">
+          <button onClick={onClose} aria-label="Close" className="text-[#6E7076] cursor-pointer hover:text-white">
             <X size={18} />
           </button>
         </div>
@@ -1988,7 +1954,7 @@ function EntryModal({ entry, onSave, onClose, symbolOptions = [] }) {
           </div>
           <button
             type="submit"
-            className="w-full bg-[#4ADE80] hover:bg-[#3ECF74] text-[#08130C] rounded-lg py-2.5 text-sm font-semibold mt-2 transition-colors"
+            className="w-full bg-[#4ADE80] hover:bg-[#3ECF74] text-[#08130C] rounded-lg py-2.5 text-sm font-semibold mt-2 cursor-pointer transition-colors"
           >
             {isEdit ? "Update entry" : "Save entry"}
           </button>

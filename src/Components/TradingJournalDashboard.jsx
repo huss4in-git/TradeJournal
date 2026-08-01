@@ -490,7 +490,7 @@ export default function TradingJournalDashboard({ session }) {
             <div className="flex items-center gap-2 flex-wrap">
               <span className="inline-flex h-9 items-center gap-2 px-3.5 rounded-lg bg-[#4ADE80]/10 border border-[#4ADE80]/25 text-xs font-medium text-[#4ADE80]">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80]" />
-                Manual entries
+                Manual Entries
               </span>
               <Select value={symbolFilter} onChange={setSymbolFilter} label="Symbol">
                 <option value="all">All symbols</option>

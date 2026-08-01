@@ -66,6 +66,18 @@ const compact = (n) => {
   return `${n < 0 ? "-" : ""}$${abs.toFixed(0)}`;
 };
 
+// Three significant digits, so the string never exceeds ~6 characters and
+// still fits a narrow calendar cell on a phone. $347, -$19.4, -$96.3, $1.2k
+const tight = (n) => {
+  const abs = Math.abs(n);
+  const sign = n < 0 ? "-" : "";
+  if (abs >= 10000) return `${sign}$${(abs / 1000).toFixed(0)}k`;
+  if (abs >= 1000) return `${sign}$${(abs / 1000).toFixed(1)}k`;
+  if (abs >= 100) return `${sign}$${abs.toFixed(0)}`;
+  if (abs >= 10) return `${sign}$${abs.toFixed(1)}`;
+  return `${sign}$${abs.toFixed(2)}`;
+};
+
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 // Shown in the symbol dropdown before you've logged anything. Anything you
@@ -672,7 +684,7 @@ export default function TradingJournalDashboard({ session }) {
 
             <div className="xl:col-span-2 order-first xl:order-none">
               <Card noPad>
-                <MonthCalendar calendar={calendar} hasData={hasData} />
+                <MonthCalendar calendar={calendar} trades={visible} hasData={hasData} />
               </Card>
             </div>
           </div>
@@ -824,7 +836,8 @@ function Tab({ active, onClick, children }) {
 /* ------------------------------------------------------------------
    Month calendar
    ------------------------------------------------------------------ */
-function MonthCalendar({ calendar, hasData }) {
+function MonthCalendar({ calendar, trades = [], hasData }) {
+  const [openDay, setOpenDay] = useState(null);
   const [cursor, setCursor] = useState(() => {
     const dates = Object.keys(calendar).map((d) => new Date(d));
     const latest = dates.length ? dates.sort((a, b) => b - a)[0] : new Date();
@@ -937,7 +950,7 @@ function MonthCalendar({ calendar, hasData }) {
               <div className="grid grid-cols-7 gap-1 sm:gap-1.5 flex-1">
                 {week.map((d, i) => {
                   if (d === null)
-                    return <div key={i} className="min-h-[112px] sm:min-h-[104px] rounded-lg" />;
+                    return <div key={i} className="min-h-[92px] sm:min-h-[104px] rounded-lg" />;
 
                   const key = toDateKey(new Date(year, month, d));
                   const info = calendar[key];
@@ -957,9 +970,18 @@ function MonthCalendar({ calendar, hasData }) {
                   return (
                     <div
                       key={i}
-                      className={`relative min-h-[112px] sm:min-h-[104px] rounded-lg border p-1.5 sm:p-2 flex flex-col ${tone} ${
-                        key === todayKey ? "ring-1 ring-[#4ADE80]/60" : ""
-                      }`}
+                      onClick={() => traded && setOpenDay(key)}
+                      role={traded ? "button" : undefined}
+                      tabIndex={traded ? 0 : undefined}
+                      onKeyDown={(e) => {
+                        if (traded && (e.key === "Enter" || e.key === " ")) {
+                          e.preventDefault();
+                          setOpenDay(key);
+                        }
+                      }}
+                      className={`relative min-h-[92px] sm:min-h-[104px] rounded-lg border p-1.5 sm:p-2 flex flex-col ${tone} ${
+                        traded ? "cursor-pointer hover:brightness-125 transition" : ""
+                      } ${key === todayKey ? "ring-1 ring-[#4ADE80]/60" : ""}`}
                     >
                       <span
                         className={`text-[11px] sm:text-xs self-end ${
@@ -972,18 +994,21 @@ function MonthCalendar({ calendar, hasData }) {
                       {traded && (
                         <div className="mt-auto text-right leading-tight min-w-0">
                           <p
-                            className={`text-[10px] sm:text-[15px] font-bold truncate ${
+                            className={`text-[10px] sm:text-[15px] font-bold ${
                               flat ? "text-[#C9CBD1]" : win ? "text-[#4ADE80]" : "text-[#F87171]"
                             }`}
                             title={`${info.pnl < 0 ? "-" : ""}${currency(Math.abs(info.pnl))}`}
                           >
-                            {info.pnl < 0 ? "-" : ""}
-                            {currency(Math.abs(info.pnl))}
+                            <span className="sm:hidden">{tight(info.pnl)}</span>
+                            <span className="hidden sm:inline whitespace-nowrap">
+                              {info.pnl < 0 ? "-" : ""}
+                              {currency(Math.abs(info.pnl))}
+                            </span>
                           </p>
                           <p className="text-[9px] sm:text-[11px] text-[#8A8D94] truncate">
                             {info.count} trade{info.count > 1 ? "s" : ""}
                           </p>
-                          <p className="text-[9px] sm:text-[11px] text-[#6E7076] truncate">
+                          <p className="text-[9px] sm:text-[11px] text-[#6E7076] truncate hidden sm:block">
                             {winRate.toFixed(2)}%
                           </p>
                         </div>
@@ -1036,7 +1061,7 @@ function MonthCalendar({ calendar, hasData }) {
             >
               <span className="text-[11px] text-[#6E7076]">Week {wi + 1}</span>
               <span
-                className={`text-sm font-bold ${
+                className={`text-sm font-bold whitespace-nowrap ${
                   weekDaysTraded === 0
                     ? "text-[#4A4D53]"
                     : weekPnl > 0
@@ -1046,11 +1071,146 @@ function MonthCalendar({ calendar, hasData }) {
                     : "text-[#C9CBD1]"
                 }`}
               >
-                {weekDaysTraded === 0 ? "$0" : `${weekPnl < 0 ? "-" : ""}${currency(Math.abs(weekPnl))}`}
+                {weekDaysTraded === 0 ? "$0" : tight(weekPnl)}
               </span>
             </div>
           );
         })}
+      </div>
+
+      {openDay && (
+        <DayDetailModal
+          dateKey={openDay}
+          trades={trades.filter((t) => t.date === openDay)}
+          onClose={() => setOpenDay(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------
+   Day detail — tap a calendar cell to see that day's trades.
+   ------------------------------------------------------------------ */
+function DayDetailModal({ dateKey, trades, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  // Parse as local time — new Date("2026-07-22") would be UTC and can
+  // land on the previous day depending on the timezone.
+  const [y, m, d] = dateKey.split("-").map(Number);
+  const dateObj = new Date(y, m - 1, d);
+
+  const net = trades.reduce((s, t) => s + t.pnl, 0);
+  const wins = trades.filter((t) => t.pnl > 0).length;
+  const winRate = trades.length ? (wins / trades.length) * 100 : 0;
+  const fees = trades.reduce((s, t) => s + (t.fees ?? 0), 0);
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[#121316] border border-[#232529] rounded-2xl w-full max-w-xs sm:max-w-sm max-h-[80vh] overflow-y-auto"
+      >
+        <div className="flex items-start justify-between p-4 pb-3">
+          <div>
+            <h3 className="text-base font-semibold">
+              {dateObj.toLocaleDateString("en-US", { weekday: "long" })}
+            </h3>
+            <p className="text-xs text-[#6E7076] mt-0.5">
+              {dateObj.toLocaleDateString("en-US", {
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              })}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="text-[#6E7076] hover:text-white p-1 -mr-1"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        {/* Day summary */}
+        <div className="mx-4 rounded-lg border border-[#232529] flex divide-x divide-[#232529]">
+          <div className="flex-1 py-3 text-center">
+            <p className="text-[9px] uppercase tracking-wider text-[#6E7076]">Net P&L</p>
+            <p
+              className={`text-lg font-bold mt-0.5 ${
+                net > 0 ? "text-[#4ADE80]" : net < 0 ? "text-[#F87171]" : "text-[#C9CBD1]"
+              }`}
+            >
+              {net >= 0 ? "+" : "-"}
+              {currency(Math.abs(net))}
+            </p>
+          </div>
+          <div className="flex-1 py-3 text-center">
+            <p className="text-[9px] uppercase tracking-wider text-[#6E7076]">Win rate</p>
+            <p className="text-lg font-bold mt-0.5">{winRate.toFixed(1)}%</p>
+          </div>
+        </div>
+
+        {fees !== 0 && (
+          <p className="px-4 mt-2 text-[10px] text-[#6E7076] text-center">
+            Includes <span className="text-[#F87171]">{currency(fees)}</span> in commission and swap
+          </p>
+        )}
+
+        {/* Per-trade breakdown */}
+        <div className="p-4 pt-4">
+          <h4 className="text-xs font-semibold mb-2">
+            {trades.length} trade{trades.length === 1 ? "" : "s"}
+          </h4>
+
+          <table className="w-full">
+            <thead>
+              <tr className="text-[9px] uppercase tracking-wider text-[#6E7076] border-b border-[#1D1F23]">
+                <th className="text-left font-medium pb-1.5">Symbol</th>
+                <th className="text-right font-medium pb-1.5">Net P&L</th>
+              </tr>
+            </thead>
+            <tbody>
+              {trades.map((t) => (
+                <tr key={t.id} className="border-b border-[#1D1F23] last:border-0 align-top">
+                  <td className="py-2.5 pr-3">
+                    <span className="text-[13px] font-medium text-[#E4E6EA]">{t.symbol || "—"}</span>
+                    {t.note && (
+                      <span className="block text-[10px] text-[#6E7076] mt-0.5 leading-snug">
+                        {t.note}
+                      </span>
+                    )}
+                  </td>
+                  <td
+                    className={`py-2.5 text-right text-[13px] font-semibold whitespace-nowrap ${
+                      t.pnl > 0
+                        ? "text-[#4ADE80]"
+                        : t.pnl < 0
+                        ? "text-[#F87171]"
+                        : "text-[#C9CBD1]"
+                    }`}
+                  >
+                    {t.pnl >= 0 ? "+" : "-"}
+                    {currency(Math.abs(t.pnl))}
+                    {t.fees !== 0 && (
+                      <span className="block text-[9px] text-[#4A4D53] font-normal mt-0.5">
+                        {currency(t.gross)} gross
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

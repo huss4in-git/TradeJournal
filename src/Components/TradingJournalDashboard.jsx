@@ -233,7 +233,8 @@ export default function TradingJournalDashboard({ session }) {
 
     const handleScroll = () => {
       const currentScroll = window.scrollY;
-      setNavVisible(!(currentScroll > lastScroll && currentScroll > 100));
+      const isDesktop = window.innerWidth >= 640;
+      setNavVisible(isDesktop || !(currentScroll > lastScroll && currentScroll > 100));
       lastScroll = currentScroll;
     };
 
@@ -410,51 +411,58 @@ export default function TradingJournalDashboard({ session }) {
 
   return (
     <div className="min-h-screen bg-[#0A0A0B] text-white font-sans">
-      {/* Top bar */}
-      <div
-        ref={topBarRef}
-        className={`sticky top-0 z-40 bg-[#0D0E10] border-b border-[#1D1F23] px-4 sm:px-6 py-3.5 flex items-center justify-between transform transition-transform duration-500 sm:translate-y-0 ${
-          navVisible ? "translate-y-0" : "-translate-y-full"
-        }`}
-      >
-        <div className="flex items-center gap-3">
-          <Logo />
-        </div>
-        <div className="flex items-center gap-2">
-          <button className="w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center cursor-default hover:border-[#2E3137] transition-colors">
-            <Bell size={15} className="text-[#8A8D94]" />
-          </button>
-          <button
-            onClick={() => supabase.auth.signOut()}
-            title={session?.user?.email ? `Sign out ${session.user.email}` : "Sign out"}
-            aria-label="Sign out"
-            className="w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center cursor-pointer hover:border-[#F87171]/40 hover:text-[#F87171] text-[#8A8D94] transition-colors"
-          >
-            <LogOut size={15} />
-          </button>
-        </div>
-      </div>
-
-      {/* Mobile header — sibling of the top bar so nothing interferes with
-          position: sticky (nesting it inside the flex row breaks it in Safari). */}
-      <div
-        style={{ top: navVisible ? "var(--topbar-h, 64px)" : 0 }}
-        className="sm:hidden sticky z-30 bg-[#0A0A0B] border-b border-[#1D1F23] px-4 pt-4 pb-4 flex items-center justify-between gap-3 transition-[top] duration-500"
-      >
-        <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
-        <button
-          onClick={() => setShowFilters((v) => !v)}
-          aria-expanded={showFilters}
-          aria-label="Date range"
-          className={`h-9 inline-flex items-center gap-1.5 px-3 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
-            showFilters
-              ? "bg-[#4ADE80]/10 border-[#4ADE80]/25 text-[#4ADE80]"
-              : "bg-[#17181B] border-[#232529] text-[#C9CBD1]"
-          }`}
+      {/* Top bar and the mobile Dashboard row sit in one sticky container.
+          The bar lives in a shell whose height animates to zero; the bar is
+          anchored to the shell's bottom, so it slides up out of view rather
+          than being squashed. The Dashboard row is plain flow underneath, so
+          it rises with the shell and no gap can open between them.
+          (Animating `top` on a sticky element instead is what caused the gap:
+          Safari snaps it rather than transitioning it.) */}
+      <div className="sticky top-0 z-40">
+        <div
+          style={{ height: navVisible ? "var(--topbar-h, 64px)" : "0px" }}
+          className="relative overflow-hidden transition-[height] duration-500"
         >
-          <CalendarDays size={14} />
-          {rangeLabel}
-        </button>
+          <div
+            ref={topBarRef}
+            className="absolute inset-x-0 bottom-0 bg-[#0D0E10] border-b border-[#1D1F23] px-4 sm:px-6 py-3.5 flex items-center justify-between"
+          >
+            <div className="flex items-center gap-3">
+              <Logo />
+            </div>
+            <div className="flex items-center gap-2">
+              <button className="w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center cursor-default hover:border-[#2E3137] transition-colors">
+                <Bell size={15} className="text-[#8A8D94]" />
+              </button>
+              <button
+                onClick={() => supabase.auth.signOut()}
+                title={session?.user?.email ? `Sign out ${session.user.email}` : "Sign out"}
+                aria-label="Sign out"
+                className="w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center cursor-pointer hover:border-[#F87171]/40 hover:text-[#F87171] text-[#8A8D94] transition-colors"
+              >
+                <LogOut size={15} />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Mobile header */}
+        <div className="sm:hidden bg-[#0A0A0B] border-b border-[#1D1F23] px-4 pt-4 pb-4 flex items-center justify-between gap-3">
+          <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
+          <button
+            onClick={() => setShowFilters((v) => !v)}
+            aria-expanded={showFilters}
+            aria-label="Date range"
+            className={`h-9 inline-flex items-center gap-1.5 px-3 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
+              showFilters
+                ? "bg-[#4ADE80]/10 border-[#4ADE80]/25 text-[#4ADE80]"
+                : "bg-[#17181B] border-[#232529] text-[#C9CBD1]"
+            }`}
+          >
+            <CalendarDays size={14} />
+            {rangeLabel}
+          </button>
+        </div>
       </div>
 
       <div className="flex">

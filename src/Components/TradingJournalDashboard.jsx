@@ -393,7 +393,7 @@ export default function TradingJournalDashboard({ session }) {
 
       {/* Mobile header — sibling of the top bar so nothing interferes with
           position: sticky (nesting it inside the flex row breaks it in Safari). */}
-      <div className="sm:hidden sticky top-[var(--topbar-h,64px)] z-30 bg-[#0A0A0B]/95 backdrop-blur border-b border-[#1D1F23] px-4 pt-5 pb-4 flex items-center justify-between gap-3">
+      <div className="sm:hidden sticky top-[var(--topbar-h,64px)] z-30 bg-[#0A0A0B]/95 backdrop-blur border-b border-[#1D1F23] px-4 pt-4 pb-4 flex items-center justify-between gap-3">
         <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
         <button
           onClick={() => setShowFilters((v) => !v)}

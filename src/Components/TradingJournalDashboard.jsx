@@ -224,31 +224,40 @@ export default function TradingJournalDashboard({ session }) {
     return () => ro.disconnect();
   }, []);
 
-  // How far the top bar is pushed up, in pixels. Follows your scroll
-  // one-to-one instead of snapping, so it feels attached to the gesture.
-  const [navOffset, setNavOffset] = useState(0);
-
+  // The nav follows scroll by writing straight to the DOM. Putting the
+  // offset in React state would re-render the whole dashboard — charts,
+  // calendar and all — on every scroll frame, which is what makes it lag.
+  const mobileHeadRef = useRef(null);
   const lastY = useRef(0);
   const offsetRef = useRef(0);
+
   useEffect(() => {
     let frame = null;
 
-    const onScroll = () => {
-      if (frame) return; // one update per painted frame
-      frame = requestAnimationFrame(() => {
-        frame = null;
-        const y = Math.max(window.scrollY, 0);
-        const barH = topBarRef.current?.offsetHeight ?? 64;
-        const delta = y - lastY.current;
-        lastY.current = y;
+    const apply = () => {
+      frame = null;
+      const y = Math.max(window.scrollY, 0);
+      const barH = topBarRef.current?.offsetHeight ?? 64;
+      const delta = y - lastY.current;
+      lastY.current = y;
 
-        // Pinned open near the top of the page.
-        const next = y < 8 ? 0 : Math.min(Math.max(offsetRef.current + delta, 0), barH);
-        if (next !== offsetRef.current) {
-          offsetRef.current = next;
-          setNavOffset(next);
-        }
-      });
+      const next = y < 8 ? 0 : Math.min(Math.max(offsetRef.current + delta, 0), barH);
+      if (next === offsetRef.current) return;
+      offsetRef.current = next;
+
+      // Desktop keeps the bar put; only the mobile layout slides.
+      if (window.innerWidth >= 640) {
+        if (topBarRef.current) topBarRef.current.style.transform = "";
+        if (mobileHeadRef.current) mobileHeadRef.current.style.top = "";
+        return;
+      }
+
+      if (topBarRef.current) topBarRef.current.style.transform = `translateY(-${next}px)`;
+      if (mobileHeadRef.current) mobileHeadRef.current.style.top = `${barH - next}px`;
+    };
+
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(apply);
     };
 
     window.addEventListener("scroll", onScroll, { passive: true });
@@ -430,8 +439,8 @@ export default function TradingJournalDashboard({ session }) {
       {/* Top bar */}
       <div
         ref={topBarRef}
-        style={{ transform: `translateY(-${navOffset}px)` }}
-        className="sticky top-0 z-40 bg-[#0D0E10] border-b border-[#1D1F23] px-4 sm:px-6 py-3.5 flex items-center justify-between sm:!transform-none"
+        style={{ willChange: "transform" }}
+        className="sticky top-0 z-40 bg-[#0D0E10] border-b border-[#1D1F23] px-4 sm:px-6 py-3.5 flex items-center justify-between"
       >
         <div className="flex items-center gap-3">
           <Logo />
@@ -454,8 +463,9 @@ export default function TradingJournalDashboard({ session }) {
       {/* Mobile header — sibling of the top bar so nothing interferes with
           position: sticky (nesting it inside the flex row breaks it in Safari). */}
       <div
-        style={{ top: `calc(var(--topbar-h, 64px) - ${navOffset}px)` }}
-        className="sm:hidden sticky z-30 bg-[#0A0A0B]/95 backdrop-blur border-b border-[#1D1F23] px-4 pt-4 pb-4 flex items-center justify-between gap-3"
+        ref={mobileHeadRef}
+        style={{ top: "var(--topbar-h, 64px)", willChange: "top" }}
+        className="sm:hidden sticky z-30 bg-[#0A0A0B] border-b border-[#1D1F23] px-4 pt-4 pb-4 flex items-center justify-between gap-3"
       >
         <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
         <button

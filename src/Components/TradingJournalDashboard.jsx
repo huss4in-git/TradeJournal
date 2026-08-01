@@ -254,8 +254,24 @@ export default function TradingJournalDashboard({ session }) {
 
     const handleScroll = () => {
       const currentScroll = window.scrollY;
+
+      // iOS rubber-banding reports scroll positions above the document
+      // height and below zero. Those bounce back and forth, which would
+      // flip the nav repeatedly and re-render the whole dashboard.
+      const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+      if (currentScroll < 0 || currentScroll > maxScroll) return;
+
+      // Near the bottom, leave the nav alone. Collapsing it shortens the
+      // page, which makes the browser adjust the scroll position, which
+      // fires another scroll event — a loop that shows up as lag.
+      if (maxScroll - currentScroll < 140) return;
+
+      // Ignore small jitter so the nav only reacts to real direction changes.
+      const delta = currentScroll - lastScroll;
+      if (Math.abs(delta) < 8) return;
+
       const isDesktop = window.innerWidth >= 640;
-      setNavVisible(isDesktop || !(currentScroll > lastScroll && currentScroll > 100));
+      setNavVisible(isDesktop || !(delta > 0 && currentScroll > 100));
       lastScroll = currentScroll;
     };
 

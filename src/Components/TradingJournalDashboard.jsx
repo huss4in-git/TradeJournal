@@ -1934,9 +1934,9 @@ function EntryModal({ entry, onSave, onClose, symbolOptions = [] }) {
   const [symbol, setSymbol] = useState(entry?.symbol ?? "");
   const [gross, setGross] = useState(entry ? String(entry.gross) : "");
   const [commission, setCommission] = useState(
-    entry?.commission ? String(entry.commission) : ""
+    entry?.commission ? `-${Math.abs(entry.commission)}` : ""
   );
-  const [swap, setSwap] = useState(entry?.swap ? String(entry.swap) : "");
+  const [swap, setSwap] = useState(entry?.swap ? `-${Math.abs(entry.swap)}` : "");
   const [note, setNote] = useState(entry?.note ?? "");
 
   useEffect(() => {
@@ -1949,8 +1949,26 @@ function EntryModal({ entry, onSave, onClose, symbolOptions = [] }) {
     const n = parseFloat(v);
     return Number.isNaN(n) ? 0 : n;
   };
+
+  // Digits and a single decimal point only — no letters, no "e", no stray
+  // signs. `signed` keeps an optional leading minus for Profit.
+  const digits = (v) => {
+    const cleaned = v.replace(/[^0-9.]/g, "");
+    const [head, ...rest] = cleaned.split(".");
+    return rest.length ? `${head}.${rest.join("")}` : head;
+  };
+  const signed = (v) => (v.trim().startsWith("-") ? `-${digits(v)}` : digits(v));
+
+  // Fees are money leaving the account, so the minus is written in for you
+  // and can't be removed.
+  const asFee = (v) => {
+    const d = digits(v);
+    return d === "" ? "" : `-${d}`;
+  };
+  const fee = (v) => -Math.abs(num(v));
+
   const grossValid = !Number.isNaN(parseFloat(gross));
-  const net = num(gross) + num(commission) + num(swap);
+  const net = num(gross) + fee(commission) + fee(swap);
 
   function handleSubmit(e) {
     e.preventDefault();
@@ -1960,8 +1978,8 @@ function EntryModal({ entry, onSave, onClose, symbolOptions = [] }) {
       date,
       symbol: symbol.trim().toUpperCase(),
       gross: num(gross),
-      commission: num(commission),
-      swap: num(swap),
+      commission: fee(commission),
+      swap: fee(swap),
       note: note.trim(),
     });
   }
@@ -1994,16 +2012,16 @@ function EntryModal({ entry, onSave, onClose, symbolOptions = [] }) {
           <div>
             <label className={labelCls}>Profit</label>
             <input
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={gross}
-              onChange={(e) => setGross(e.target.value)}
+              onChange={(e) => setGross(signed(e.target.value))}
               placeholder="112.40"
               className={field}
               required
             />
             <p className="text-[11px] text-[#4A4D53] mt-1">
-              The MT5 Profit column, before fees. Negative for a loss.
+              The MT5 Profit column, before fees. Start with a minus for a loss.
             </p>
           </div>
 
@@ -2011,10 +2029,10 @@ function EntryModal({ entry, onSave, onClose, symbolOptions = [] }) {
             <div>
               <label className={labelCls}>Commission</label>
               <input
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 value={commission}
-                onChange={(e) => setCommission(e.target.value)}
+                onChange={(e) => setCommission(asFee(e.target.value))}
                 placeholder="-0.70"
                 className={field}
               />
@@ -2022,17 +2040,18 @@ function EntryModal({ entry, onSave, onClose, symbolOptions = [] }) {
             <div>
               <label className={labelCls}>Swap</label>
               <input
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 value={swap}
-                onChange={(e) => setSwap(e.target.value)}
+                onChange={(e) => setSwap(asFee(e.target.value))}
                 placeholder="-1.47"
                 className={field}
               />
             </div>
           </div>
           <p className="text-[11px] text-[#4A4D53]">
-            Copy both straight from MT5, minus sign included. Leave blank if the account charges neither.
+            The minus is added for you — both always come off the total. Leave blank if the
+            account charges neither.
           </p>
 
           {/* Live net so you can check it against the balance change in MT5 */}

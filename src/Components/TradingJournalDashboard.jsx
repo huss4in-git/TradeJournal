@@ -78,6 +78,17 @@ const tight = (n) => {
   return `${sign}$${abs.toFixed(2)}`;
 };
 
+// One decimal place in the calendar, where two decimals are more precision
+// than the eye needs when scanning a month. A trailing .0 is dropped, so
+// whole amounts read as $150 rather than $150.0.
+const oneDp = (n) =>
+  n.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 1,
+  });
+
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 // Shown in the symbol dropdown before you've logged anything. Anything you
@@ -1194,7 +1205,7 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth }) {
                             <span className="sm:hidden">{tight(info.pnl)}</span>
                             <span className="hidden sm:inline whitespace-nowrap">
                               {info.pnl < 0 ? "-" : ""}
-                              {currency(Math.abs(info.pnl))}
+                              {oneDp(Math.abs(info.pnl))}
                             </span>
                           </p>
                           <p className="text-[9px] sm:text-[11px] text-[#8A8D94] truncate">
@@ -1232,7 +1243,7 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth }) {
                       : "text-[#C9CBD1]"
                   }`}
                 >
-                  {weekDaysTraded === 0 ? "$0" : `${weekPnl < 0 ? "-" : ""}${currency(Math.abs(weekPnl))}`}
+                  {weekDaysTraded === 0 ? "$0" : `${weekPnl < 0 ? "-" : ""}${oneDp(Math.abs(weekPnl))}`}
                 </p>
                 <span className="mt-1.5 text-[11px] text-[#6E7076] bg-[#17181B] border border-[#232529] rounded-full px-2 py-0.5">
                   {weekDaysTraded} day{weekDaysTraded === 1 ? "" : "s"}

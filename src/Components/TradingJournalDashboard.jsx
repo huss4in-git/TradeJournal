@@ -234,14 +234,20 @@ export default function TradingJournalDashboard({ session }) {
   // Sticky offsets are driven by the real top bar height, published as a
   // CSS variable. Hardcoding it causes a few pixels of jump on scroll.
   const topBarRef = useRef(null);
+  const headRowRef = useRef(null);
   useLayoutEffect(() => {
-    const el = topBarRef.current;
-    if (!el) return;
-    const publish = () =>
-      document.documentElement.style.setProperty("--topbar-h", `${el.offsetHeight}px`);
+    const bar = topBarRef.current;
+    const row = headRowRef.current;
+    if (!bar) return;
+    const publish = () => {
+      const root = document.documentElement.style;
+      root.setProperty("--topbar-h", `${bar.offsetHeight}px`);
+      root.setProperty("--headrow-h", `${row ? row.offsetHeight : 0}px`);
+    };
     publish();
     const ro = new ResizeObserver(publish);
-    ro.observe(el);
+    ro.observe(bar);
+    if (row) ro.observe(row);
     return () => ro.disconnect();
   }, []);
 
@@ -261,10 +267,6 @@ export default function TradingJournalDashboard({ session }) {
       const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
       if (currentScroll < 0 || currentScroll > maxScroll) return;
 
-      // Near the bottom, leave the nav alone. Collapsing it shortens the
-      // page, which makes the browser adjust the scroll position, which
-      // fires another scroll event — a loop that shows up as lag.
-      if (maxScroll - currentScroll < 140) return;
 
       // Ignore small jitter so the nav only reacts to real direction changes.
       const delta = currentScroll - lastScroll;
@@ -455,7 +457,7 @@ export default function TradingJournalDashboard({ session }) {
           it rises with the shell and no gap can open between them.
           (Animating `top` on a sticky element instead is what caused the gap:
           Safari snaps it rather than transitioning it.) */}
-      <div className="sticky top-0 z-40">
+      <div className="fixed top-0 left-0 right-0 z-40">
         <div
           style={{ height: navVisible ? "var(--topbar-h, 64px)" : "0px" }}
           className="relative overflow-hidden transition-[height] duration-500"
@@ -484,7 +486,10 @@ export default function TradingJournalDashboard({ session }) {
         </div>
 
         {/* Mobile header */}
-        <div className="sm:hidden bg-[#0A0A0B] border-b border-[#1D1F23] px-4 pt-4 pb-4 flex items-center justify-between gap-3">
+        <div
+          ref={headRowRef}
+          className="sm:hidden bg-[#0A0A0B] border-b border-[#1D1F23] px-4 pt-4 pb-4 flex items-center justify-between gap-3"
+        >
           <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
           <button
             onClick={() => setShowFilters((v) => !v)}
@@ -501,6 +506,10 @@ export default function TradingJournalDashboard({ session }) {
           </button>
         </div>
       </div>
+
+      {/* Reserves the header's full height. Constant, so collapsing the bar
+          moves only the header — the page below never shifts. */}
+      <div style={{ height: "calc(var(--topbar-h, 64px) + var(--headrow-h, 0px))" }} />
 
       <div className="flex">
         {/* Icon rail */}

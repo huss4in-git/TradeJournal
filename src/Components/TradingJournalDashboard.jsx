@@ -224,6 +224,40 @@ export default function TradingJournalDashboard({ session }) {
     return () => ro.disconnect();
   }, []);
 
+  // How far the top bar is pushed up, in pixels. Follows your scroll
+  // one-to-one instead of snapping, so it feels attached to the gesture.
+  const [navOffset, setNavOffset] = useState(0);
+
+  const lastY = useRef(0);
+  const offsetRef = useRef(0);
+  useEffect(() => {
+    let frame = null;
+
+    const onScroll = () => {
+      if (frame) return; // one update per painted frame
+      frame = requestAnimationFrame(() => {
+        frame = null;
+        const y = Math.max(window.scrollY, 0);
+        const barH = topBarRef.current?.offsetHeight ?? 64;
+        const delta = y - lastY.current;
+        lastY.current = y;
+
+        // Pinned open near the top of the page.
+        const next = y < 8 ? 0 : Math.min(Math.max(offsetRef.current + delta, 0), barH);
+        if (next !== offsetRef.current) {
+          offsetRef.current = next;
+          setNavOffset(next);
+        }
+      });
+    };
+
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, []);
+
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase
@@ -310,6 +344,21 @@ export default function TradingJournalDashboard({ session }) {
   const calendar = useMemo(() => groupByDay(calendarTrades), [calendarTrades]);
   const hasData = visible.length > 0;
 
+  // Whichever range is applied, the calendar opens on the month that
+  // range starts in.
+  const focusMonth = useMemo(() => {
+    const now = new Date();
+    if (range === "custom") return customFrom || null;
+    if (range === "month") return toDateKey(new Date(now.getFullYear(), now.getMonth(), 1));
+    if (range === "30d")
+      return toDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29));
+    if (range === "90d")
+      return toDateKey(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 89));
+    // All time: the earliest entry you have, or this month if there are none.
+    if (!trades.length) return toDateKey(new Date(now.getFullYear(), now.getMonth(), 1));
+    return [...trades].sort((a, b) => (a.date < b.date ? -1 : 1))[0].date;
+  }, [range, customFrom, trades]);
+
   const rangeLabel = {
     month: "This month",
     "30d": "Last 30 days",
@@ -379,7 +428,11 @@ export default function TradingJournalDashboard({ session }) {
   return (
     <div className="min-h-screen bg-[#0A0A0B] text-white font-sans">
       {/* Top bar */}
-      <div ref={topBarRef} className="sticky top-0 z-40 bg-[#0D0E10] border-b border-[#1D1F23] px-4 sm:px-6 py-3.5 flex items-center justify-between">
+      <div
+        ref={topBarRef}
+        style={{ transform: `translateY(-${navOffset}px)` }}
+        className="sticky top-0 z-40 bg-[#0D0E10] border-b border-[#1D1F23] px-4 sm:px-6 py-3.5 flex items-center justify-between sm:!transform-none"
+      >
         <div className="flex items-center gap-3">
           <Logo />
         </div>
@@ -400,7 +453,10 @@ export default function TradingJournalDashboard({ session }) {
 
       {/* Mobile header — sibling of the top bar so nothing interferes with
           position: sticky (nesting it inside the flex row breaks it in Safari). */}
-      <div className="sm:hidden sticky top-[var(--topbar-h,64px)] z-30 bg-[#0A0A0B]/95 backdrop-blur border-b border-[#1D1F23] px-4 pt-4 pb-4 flex items-center justify-between gap-3">
+      <div
+        style={{ top: `calc(var(--topbar-h, 64px) - ${navOffset}px)` }}
+        className="sm:hidden sticky z-30 bg-[#0A0A0B]/95 backdrop-blur border-b border-[#1D1F23] px-4 pt-6 pb-4 flex items-center justify-between gap-3"
+      >
         <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
         <button
           onClick={() => setShowFilters((v) => !v)}
@@ -769,7 +825,12 @@ export default function TradingJournalDashboard({ session }) {
 
             <div className="xl:col-span-2 order-first xl:order-none">
               <Card noPad>
-                <MonthCalendar calendar={calendar} trades={calendarTrades} hasData={calendarTrades.length > 0} />
+                <MonthCalendar
+                  calendar={calendar}
+                  trades={calendarTrades}
+                  hasData={calendarTrades.length > 0}
+                  focusMonth={focusMonth}
+                />
               </Card>
             </div>
           </div>
@@ -921,13 +982,21 @@ function Tab({ active, onClick, children }) {
 /* ------------------------------------------------------------------
    Month calendar
    ------------------------------------------------------------------ */
-function MonthCalendar({ calendar, trades = [], hasData }) {
+function MonthCalendar({ calendar, trades = [], hasData, focusMonth }) {
   const [openDay, setOpenDay] = useState(null);
   const [cursor, setCursor] = useState(() => {
     const dates = Object.keys(calendar).map((d) => new Date(d));
     const latest = dates.length ? dates.sort((a, b) => b - a)[0] : new Date();
     return new Date(latest.getFullYear(), latest.getMonth(), 1);
   });
+
+  // Applying a custom range moves the calendar to that month, so the
+  // dates you just picked are the ones on screen.
+  useEffect(() => {
+    if (!focusMonth) return;
+    const [y, m] = focusMonth.split("-").map(Number);
+    setCursor(new Date(y, m - 1, 1));
+  }, [focusMonth]);
 
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
@@ -1875,7 +1944,7 @@ function EntryModal({ entry, onSave, onClose, symbolOptions = [] }) {
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
             <label className={labelCls}>Date</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={`${field} appearance-none min-w-0 block`} required />
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={field} required />
           </div>
           <div>
             <label className={labelCls}>

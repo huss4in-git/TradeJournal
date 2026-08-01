@@ -867,7 +867,7 @@ function MonthCalendar({ calendar, hasData }) {
   };
 
   return (
-    <div className="p-4 sm:p-5">
+    <div className="p-2.5 sm:p-5">
       {/* Header */}
       <div className="flex items-center gap-3 flex-wrap mb-4">
         <div className="flex items-center gap-1">
@@ -913,8 +913,8 @@ function MonthCalendar({ calendar, hasData }) {
       </div>
 
       {/* Weekday header */}
-      <div className="flex gap-1.5 mb-1.5">
-        <div className="grid grid-cols-7 gap-1.5 flex-1">
+      <div className="flex gap-1 sm:gap-1.5 mb-1 sm:mb-1.5">
+        <div className="grid grid-cols-7 gap-1 sm:gap-1.5 flex-1">
           {WEEKDAYS.map((w) => (
             <div
               key={w}
@@ -928,16 +928,16 @@ function MonthCalendar({ calendar, hasData }) {
       </div>
 
       {/* Weeks */}
-      <div className="space-y-1.5">
+      <div className="space-y-1 sm:space-y-1.5">
         {weeks.map((week, wi) => {
           const { pnl: weekPnl, days: weekDaysTraded } = weekTotals(week);
 
           return (
-            <div key={wi} className="flex gap-1.5">
-              <div className="grid grid-cols-7 gap-1.5 flex-1">
+            <div key={wi} className="flex gap-1 sm:gap-1.5">
+              <div className="grid grid-cols-7 gap-1 sm:gap-1.5 flex-1">
                 {week.map((d, i) => {
                   if (d === null)
-                    return <div key={i} className="min-h-[74px] sm:min-h-[104px] rounded-lg" />;
+                    return <div key={i} className="min-h-[112px] sm:min-h-[104px] rounded-lg" />;
 
                   const key = toDateKey(new Date(year, month, d));
                   const info = calendar[key];
@@ -957,7 +957,7 @@ function MonthCalendar({ calendar, hasData }) {
                   return (
                     <div
                       key={i}
-                      className={`relative min-h-[74px] sm:min-h-[104px] rounded-lg border p-1.5 sm:p-2 flex flex-col ${tone} ${
+                      className={`relative min-h-[112px] sm:min-h-[104px] rounded-lg border p-1.5 sm:p-2 flex flex-col ${tone} ${
                         key === todayKey ? "ring-1 ring-[#4ADE80]/60" : ""
                       }`}
                     >
@@ -977,17 +977,13 @@ function MonthCalendar({ calendar, hasData }) {
                             }`}
                             title={`${info.pnl < 0 ? "-" : ""}${currency(Math.abs(info.pnl))}`}
                           >
-                            <span className="sm:hidden">{compact(info.pnl)}</span>
-                            <span className="hidden sm:inline whitespace-nowrap">
-                              {info.pnl < 0 ? "-" : ""}
-                              {currency(Math.abs(info.pnl))}
-                            </span>
+                            {info.pnl < 0 ? "-" : ""}
+                            {currency(Math.abs(info.pnl))}
                           </p>
-                          <p className="text-[10px] sm:text-[11px] text-[#8A8D94]">
-                            {info.count}
-                            <span className="hidden sm:inline"> trade{info.count > 1 ? "s" : ""}</span>
+                          <p className="text-[9px] sm:text-[11px] text-[#8A8D94] truncate">
+                            {info.count} trade{info.count > 1 ? "s" : ""}
                           </p>
-                          <p className="text-[10px] sm:text-[11px] text-[#6E7076] hidden sm:block">
+                          <p className="text-[9px] sm:text-[11px] text-[#6E7076] truncate">
                             {winRate.toFixed(2)}%
                           </p>
                         </div>

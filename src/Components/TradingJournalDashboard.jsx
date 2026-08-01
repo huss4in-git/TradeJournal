@@ -1875,7 +1875,7 @@ function EntryModal({ entry, onSave, onClose, symbolOptions = [] }) {
         <form onSubmit={handleSubmit} className="space-y-3">
           <div>
             <label className={labelCls}>Date</label>
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={field} required />
+            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className={`${field} appearance-none min-w-0 block`} required />
           </div>
           <div>
             <label className={labelCls}>

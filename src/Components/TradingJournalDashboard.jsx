@@ -204,10 +204,31 @@ export default function TradingJournalDashboard({ session }) {
   const [loaded, setLoaded] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [range, setRange] = useState("month");
-  const [symbolFilter, setSymbolFilter] = useState("all");
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
+  // Your last chosen range survives a reload. Stored per browser, so your
+  // brother's phone keeps its own.
+  const saved = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("tradelog:range") || "{}");
+    } catch {
+      return {};
+    }
+  })();
+
+  const [range, setRange] = useState(saved.range || "month");
+  const [symbolFilter, setSymbolFilter] = useState(saved.symbolFilter || "all");
+  const [customFrom, setCustomFrom] = useState(saved.customFrom || "");
+  const [customTo, setCustomTo] = useState(saved.customTo || "");
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "tradelog:range",
+        JSON.stringify({ range, symbolFilter, customFrom, customTo })
+      );
+    } catch {
+      // Private browsing can throw on write; the app works fine without it.
+    }
+  }, [range, symbolFilter, customFrom, customTo]);
   const [showFilters, setShowFilters] = useState(false);
 
   // Sticky offsets are driven by the real top bar height, published as a
@@ -490,7 +511,7 @@ export default function TradingJournalDashboard({ session }) {
             <div className="flex items-center gap-2 flex-wrap">
               <span className="inline-flex h-9 items-center gap-2 px-3.5 rounded-lg bg-[#4ADE80]/10 border border-[#4ADE80]/25 text-xs font-medium text-[#4ADE80]">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80]" />
-                Manual Entries
+                Manual entries
               </span>
               <Select value={symbolFilter} onChange={setSymbolFilter} label="Symbol">
                 <option value="all">All symbols</option>

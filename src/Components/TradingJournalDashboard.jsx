@@ -455,7 +455,7 @@ export default function TradingJournalDashboard({ session }) {
           position: sticky (nesting it inside the flex row breaks it in Safari). */}
       <div
         style={{ top: `calc(var(--topbar-h, 64px) - ${navOffset}px)` }}
-        className="sm:hidden sticky z-30 bg-[#0A0A0B]/95 backdrop-blur border-b border-[#1D1F23] px-4 pt-6 pb-4 flex items-center justify-between gap-3"
+        className="sm:hidden sticky z-30 bg-[#0A0A0B]/95 backdrop-blur border-b border-[#1D1F23] px-4 pt-4 pb-4 flex items-center justify-between gap-3"
       >
         <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
         <button

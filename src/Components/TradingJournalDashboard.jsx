@@ -339,6 +339,7 @@ export default function TradingJournalDashboard({ session }) {
         // we already have rather than clearing the calendar.
         if (!events.length) return;
         const byDay = {};
+        const todayKey = toDateKey(new Date());
         events.forEach((e) => {
           // Gold, indices and oil all price off the dollar, so only USD
           // releases matter here. "All" covers things like OPEC meetings.
@@ -346,6 +347,9 @@ export default function TradingJournalDashboard({ session }) {
           const d = new Date(e.date);
           if (Number.isNaN(d.getTime())) return;
           const key = toDateKey(d); // local date, matching the calendar
+          // Past releases are already priced in — only today and ahead are
+          // worth flagging before a trade.
+          if (key < todayKey) return;
           (byDay[key] ||= []).push({ ...e, time: d });
         });
         Object.values(byDay).forEach((list) => list.sort((a, b) => a.time - b.time));

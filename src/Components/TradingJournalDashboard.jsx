@@ -916,7 +916,7 @@ export default function TradingJournalDashboard({ session }) {
               </div>
             </div>
 
-            <div className="xl:col-span-2 order-first xl:order-none">
+            <div className="xl:col-span-2 order-first xl:order-none relative z-10">
               <Card noPad>
                 <MonthCalendar
                   calendar={calendar}
@@ -1128,7 +1128,7 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
   };
 
   return (
-    <div className="p-2.5 sm:p-5">
+    <div className="p-2.5 sm:p-5 relative">
       {/* Header */}
       <div className="flex items-center gap-3 flex-wrap mb-4">
         <div className="flex items-center gap-1">
@@ -1194,7 +1194,7 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
           const { pnl: weekPnl, days: weekDaysTraded } = weekTotals(week);
 
           return (
-            <div key={wi} className="flex gap-1 sm:gap-1.5">
+            <div key={wi} className="relative flex gap-1 sm:gap-1.5 hover:z-20">
               <div className="grid grid-cols-7 gap-1 sm:gap-1.5 flex-1">
                 {week.map((d, i) => {
                   if (d === null)
@@ -1230,7 +1230,9 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
                           setOpenDay(key);
                         }
                       }}
-                      className={`relative min-h-[74px] sm:min-h-[104px] rounded-lg border p-1.5 sm:p-2 flex flex-col ${tone} ${
+                      // hover:z-20 lifts the whole cell so its hover card paints
+                      // above the day cells that come after it in the DOM.
+                      className={`relative hover:z-20 min-h-[74px] sm:min-h-[104px] rounded-lg border p-1.5 sm:p-2 flex flex-col ${tone} ${
                         traded || news.length ? "cursor-pointer hover:brightness-125 transition" : ""
                       } ${key === todayKey ? "ring-1 ring-[#4ADE80]/60" : ""}`}
                     >
@@ -1298,7 +1300,13 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
 
                           {/* Hover card. Desktop only — on mobile, tapping the
                               day opens the full popup instead. */}
-                          <div className="hidden sm:block pointer-events-none opacity-0 group-hover/news:opacity-100 transition-opacity absolute top-full left-0 mt-1.5 z-30 w-60 rounded-xl border border-[#2A2C31] bg-[#17181B] p-3 shadow-xl">
+                          <div
+                            className={`hidden sm:block pointer-events-none opacity-0 group-hover/news:opacity-100 transition-opacity absolute left-0 z-30 w-60 rounded-xl border border-[#2A2C31] bg-[#17181B] p-3 shadow-xl ${
+                              wi >= weeks.length - 2
+                                ? "bottom-full mb-1.5"
+                                : "top-full mt-1.5"
+                            }`}
+                          >
                             <p className="text-[11px] font-semibold text-white mb-2">
                               {new Date(year, month, d).toLocaleDateString("en-US", {
                                 weekday: "long",

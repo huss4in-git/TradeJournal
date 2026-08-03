@@ -327,36 +327,36 @@ export default function TradingJournalDashboard({ session }) {
     })();
   }, []);
 
-  // High-impact economic events, grouped by local date. Served from
-  // /api/news, which proxies and caches the Forex Factory feed.
+  // Economic events, read from Supabase. A cron keeps that table current,
+  // so a page load never depends on Forex Factory being reachable.
   const [newsByDay, setNewsByDay] = useState({});
   useEffect(() => {
     (async () => {
-      try {
-        const res = await fetch("/api/news");
-        const { events = [] } = await res.json();
-        // An empty response means the feed refused us this time. Keep whatever
-        // we already have rather than clearing the calendar.
-        if (!events.length) return;
-        const byDay = {};
-        const todayKey = toDateKey(new Date());
-        events.forEach((e) => {
-          // Gold, indices and oil all price off the dollar, so only USD
-          // releases matter here. "All" covers things like OPEC meetings.
-          if (e.currency !== "USD" && e.currency !== "All") return;
-          const d = new Date(e.date);
-          if (Number.isNaN(d.getTime())) return;
-          const key = toDateKey(d); // local date, matching the calendar
-          // Past releases are already priced in — only today and ahead are
-          // worth flagging before a trade.
-          if (key < todayKey) return;
-          (byDay[key] ||= []).push({ ...e, time: d });
+      const from = new Date();
+      from.setHours(0, 0, 0, 0); // today onwards — past releases are priced in
+
+      const { data, error } = await supabase
+        .from("news_events")
+        .select("*")
+        .gte("event_at", from.toISOString())
+        .order("event_at", { ascending: true });
+
+      if (error || !data?.length) return;
+
+      const byDay = {};
+      data.forEach((e) => {
+        const d = new Date(e.event_at);
+        if (Number.isNaN(d.getTime())) return;
+        const key = toDateKey(d); // local date, matching the calendar
+        (byDay[key] ||= []).push({
+          title: e.title,
+          currency: e.currency,
+          impact: e.impact,
+          forecast: e.forecast,
+          time: d,
         });
-        Object.values(byDay).forEach((list) => list.sort((a, b) => a.time - b.time));
-        setNewsByDay(byDay);
-      } catch {
-        // No news is fine — the calendar just shows no dots.
-      }
+      });
+      setNewsByDay(byDay);
     })();
   }, []);
 

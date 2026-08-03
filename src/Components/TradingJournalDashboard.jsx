@@ -1269,7 +1269,7 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
                       {traded && info.notes > 0 && (
                         <span
                           title={`${info.notes} note${info.notes > 1 ? "s" : ""}`}
-                          className="absolute bottom-1.5 right-2 w-1.5 h-1.5 rounded-full bg-[#4ADE80]"
+                          className="absolute bottom-1.5 left-1.5 sm:left-2 w-1.5 h-1.5 rounded-full bg-[#4ADE80]"
                         />
                       )}
 
@@ -1277,19 +1277,58 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
                           for medium. A bare dot on mobile where there's no room
                           for a count, a labelled badge from sm up. */}
                       {(redFolder.length > 0 || orangeFolder.length > 0) && (
-                        <span
-                          title={[...redFolder, ...orangeFolder]
-                            .map((n) => `${n.currency} ${n.title}`)
-                            .join("\n")}
-                          className={`absolute top-1.5 left-1.5 sm:top-2 sm:left-2 flex items-center rounded-full sm:rounded sm:gap-1 sm:px-1.5 sm:py-0.5 text-[9px] font-semibold leading-none w-1.5 h-1.5 sm:w-auto sm:h-auto ${
-                            redFolder.length
-                              ? "bg-[#F87171] sm:bg-[#F87171]/20 text-[#F87171]"
-                              : "bg-[#E0A32E] sm:bg-[#E0A32E]/20 text-[#E0A32E]"
-                          }`}
-                        >
-                          <span className="hidden sm:block w-1.5 h-1.5 rounded-full bg-current" />
-                          <span className="hidden sm:block">
-                            {redFolder.length || orangeFolder.length}
+                        <span className="absolute top-1.5 left-1.5 sm:top-2 sm:left-2 group/news">
+                          <span
+                            className={`flex items-center rounded-full sm:rounded sm:gap-1 sm:px-1.5 sm:py-0.5 text-[9px] font-semibold leading-none w-1.5 h-1.5 sm:w-auto sm:h-auto ${
+                              redFolder.length
+                                ? "bg-[#F87171] sm:bg-[#F87171]/20 text-[#F87171]"
+                                : "bg-[#E0A32E] sm:bg-[#E0A32E]/20 text-[#E0A32E]"
+                            }`}
+                          >
+                            <span className="hidden sm:block w-1.5 h-1.5 rounded-full bg-current" />
+                            <span className="hidden sm:block">
+                              {redFolder.length || orangeFolder.length}
+                            </span>
+                          </span>
+
+                          {/* Hover card listing that day's releases. Desktop only —
+                              on mobile, tapping the day opens the full popup. */}
+                          <span className="hidden sm:block pointer-events-none opacity-0 group-hover/news:opacity-100 transition-opacity absolute top-full left-0 mt-1.5 z-30 w-60 rounded-xl border border-[#2A2C31] bg-[#17181B] p-3 shadow-xl text-left">
+                            <span className="block text-[11px] font-semibold text-white mb-2">
+                              {new Date(year, month, d).toLocaleDateString("en-US", {
+                                weekday: "long",
+                                month: "short",
+                                day: "numeric",
+                              })}
+                            </span>
+                            {[...redFolder, ...orangeFolder].map((n, ni) => (
+                              <span key={ni} className="flex items-start gap-2 mb-2 last:mb-0">
+                                <span
+                                  className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${
+                                    n.impact === "High" ? "bg-[#F87171]" : "bg-[#E0A32E]"
+                                  }`}
+                                />
+                                <span className="block min-w-0">
+                                  <span className="block text-[11px] text-[#E4E6EA] leading-snug">
+                                    {n.title}
+                                  </span>
+                                  <span className="block text-[10px] text-[#6E7076] mt-0.5">
+                                    {n.currency}
+                                    <span className="mx-1 text-[#33363B]">·</span>
+                                    {n.time.toLocaleTimeString("en-US", {
+                                      hour: "numeric",
+                                      minute: "2-digit",
+                                    })}
+                                    {n.forecast && (
+                                      <>
+                                        <span className="mx-1 text-[#33363B]">·</span>
+                                        F: {n.forecast}
+                                      </>
+                                    )}
+                                  </span>
+                                </span>
+                              </span>
+                            ))}
                           </span>
                         </span>
                       )}

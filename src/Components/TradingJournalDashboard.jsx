@@ -335,6 +335,9 @@ export default function TradingJournalDashboard({ session }) {
       try {
         const res = await fetch("/api/news");
         const { events = [] } = await res.json();
+        // An empty response means the feed refused us this time. Keep whatever
+        // we already have rather than clearing the calendar.
+        if (!events.length) return;
         const byDay = {};
         events.forEach((e) => {
           // Gold, indices and oil all price off the dollar, so only USD

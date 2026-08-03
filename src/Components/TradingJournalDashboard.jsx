@@ -699,7 +699,7 @@ export default function TradingJournalDashboard({ session }) {
 
             <Card>
               <Label>Trade win %</Label>
-              <div className="mt-1 flex items-center justify-between gap-3">
+              <div className="flex items-center justify-between gap-3">
                 <p className="text-2xl font-semibold">{hasData ? `${stats.winRate.toFixed(2)}%` : "--"}</p>
                 <Gauge counts={stats.counts} show={hasData} noun="trades" />
               </div>
@@ -707,7 +707,7 @@ export default function TradingJournalDashboard({ session }) {
 
             <Card>
               <Label>Profit factor</Label>
-              <div className="mt-2 flex items-end justify-between gap-3">
+              <div className="flex items-end justify-between gap-3">
                 <div>
                   <p className="text-2xl font-semibold">
                     {hasData

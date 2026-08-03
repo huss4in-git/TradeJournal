@@ -337,6 +337,9 @@ export default function TradingJournalDashboard({ session }) {
         const { events = [] } = await res.json();
         const byDay = {};
         events.forEach((e) => {
+          // Gold, indices and oil all price off the dollar, so only USD
+          // releases matter here. "All" covers things like OPEC meetings.
+          if (e.currency !== "USD" && e.currency !== "All") return;
           const d = new Date(e.date);
           if (Number.isNaN(d.getTime())) return;
           const key = toDateKey(d); // local date, matching the calendar

@@ -15,6 +15,7 @@ import {
   PolarGrid,
   PolarAngleAxis,
   Radar,
+  ReferenceLine,
 } from "recharts";
 import {
   Bell,
@@ -326,6 +327,29 @@ export default function TradingJournalDashboard({ session }) {
     })();
   }, []);
 
+  // High-impact economic events, grouped by local date. Served from
+  // /api/news, which proxies and caches the Forex Factory feed.
+  const [newsByDay, setNewsByDay] = useState({});
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch("/api/news");
+        const { events = [] } = await res.json();
+        const byDay = {};
+        events.forEach((e) => {
+          const d = new Date(e.date);
+          if (Number.isNaN(d.getTime())) return;
+          const key = toDateKey(d); // local date, matching the calendar
+          (byDay[key] ||= []).push({ ...e, time: d });
+        });
+        Object.values(byDay).forEach((list) => list.sort((a, b) => a.time - b.time));
+        setNewsByDay(byDay);
+      } catch {
+        // No news is fine — the calendar just shows no dots.
+      }
+    })();
+  }, []);
+
   const symbols = useMemo(
     () => Array.from(new Set(trades.map((t) => t.symbol).filter(Boolean))).sort(),
     [trades]
@@ -368,6 +392,17 @@ export default function TradingJournalDashboard({ session }) {
 
   const stats = useMemo(() => computeStats(visible), [visible]);
   const series = useMemo(() => buildDailySeries(visible), [visible]);
+
+  // Where the starting balance sits inside the chart's value range, as a
+  // 0–100% offset. The fill flips from green to red at that point.
+  const splitAt = useMemo(() => {
+    if (!series.length) return "100%";
+    const vals = series.map((d) => d.balance);
+    const hi = Math.max(...vals, STARTING_BALANCE);
+    const lo = Math.min(...vals, STARTING_BALANCE);
+    if (hi === lo) return "100%";
+    return `${clamp(((hi - STARTING_BALANCE) / (hi - lo)) * 100)}%`;
+  }, [series]);
   // The calendar has its own month navigation, so it ignores the date range —
   // otherwise stepping back a month would show an empty grid. Symbol filter
   // still applies.
@@ -803,17 +838,21 @@ export default function TradingJournalDashboard({ session }) {
                 {hasData ? (
                   <>
                     <div className="flex items-center gap-4 mb-2 flex-wrap">
-                      <LegendDot color={GREEN}>Balance</LegendDot>
-                      <span className="text-xs text-[#6E7076]">
-                        Start {currency(STARTING_BALANCE)}
-                      </span>
+                      <LegendDot color={GREEN}>Above start</LegendDot>
+                      <LegendDot color={RED}>Below start</LegendDot>
                     </div>
                     <ResponsiveContainer width="100%" height={230}>
                       <AreaChart data={series} margin={{ top: 10, right: 8, left: -6, bottom: 0 }}>
                         <defs>
-                          <linearGradient id="balFill" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor={GREEN} stopOpacity={0.28} />
-                            <stop offset="100%" stopColor={GREEN} stopOpacity={0} />
+                          {/* Both gradients flip colour exactly where the balance
+                              crosses your starting capital — green above, red below. */}
+                          <linearGradient id="balSplit" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset={splitAt} stopColor={GREEN} stopOpacity={0.3} />
+                            <stop offset={splitAt} stopColor={RED} stopOpacity={0.3} />
+                          </linearGradient>
+                          <linearGradient id="balStroke" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset={splitAt} stopColor={GREEN} />
+                            <stop offset={splitAt} stopColor={RED} />
                           </linearGradient>
                         </defs>
                         <CartesianGrid stroke="#1D1F23" vertical={false} />
@@ -839,12 +878,14 @@ export default function TradingJournalDashboard({ session }) {
                           labelStyle={labelStyle}
                           formatter={(v) => [currency(v), "Balance"]}
                         />
+                        <ReferenceLine y={STARTING_BALANCE} stroke="#4A4D53" strokeDasharray="4 4" />
                         <Area
                           type="monotone"
                           dataKey="balance"
-                          stroke={GREEN}
+                          stroke="url(#balStroke)"
                           strokeWidth={2}
-                          fill="url(#balFill)"
+                          fill="url(#balSplit)"
+                          baseValue={STARTING_BALANCE}
                         />
                       </AreaChart>
                     </ResponsiveContainer>
@@ -877,6 +918,7 @@ export default function TradingJournalDashboard({ session }) {
                 <MonthCalendar
                   calendar={calendar}
                   trades={calendarTrades}
+                  newsByDay={newsByDay}
                   hasData={calendarTrades.length > 0}
                   focusMonth={focusMonth}
                 />
@@ -1031,7 +1073,7 @@ function Tab({ active, onClick, children }) {
 /* ------------------------------------------------------------------
    Month calendar
    ------------------------------------------------------------------ */
-function MonthCalendar({ calendar, trades = [], hasData, focusMonth }) {
+function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay = {} }) {
   const [openDay, setOpenDay] = useState(null);
   const [cursor, setCursor] = useState(() => {
     const dates = Object.keys(calendar).map((d) => new Date(d));
@@ -1158,6 +1200,9 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth }) {
                   const key = toDateKey(new Date(year, month, d));
                   const info = calendar[key];
                   const traded = !!info;
+                  const news = newsByDay[key] || [];
+                  const redFolder = news.filter((n) => n.impact === "High");
+                  const orangeFolder = news.filter((n) => n.impact === "Medium");
                   const flat = traded && info.pnl === 0;
                   const win = traded && info.pnl > 0;
                   const winRate = traded ? (info.wins / info.count) * 100 : null;
@@ -1173,17 +1218,17 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth }) {
                   return (
                     <div
                       key={i}
-                      onClick={() => traded && setOpenDay(key)}
-                      role={traded ? "button" : undefined}
-                      tabIndex={traded ? 0 : undefined}
+                      onClick={() => (traded || news.length) && setOpenDay(key)}
+                      role={traded || news.length ? "button" : undefined}
+                      tabIndex={traded || news.length ? 0 : undefined}
                       onKeyDown={(e) => {
-                        if (traded && (e.key === "Enter" || e.key === " ")) {
+                        if ((traded || news.length) && (e.key === "Enter" || e.key === " ")) {
                           e.preventDefault();
                           setOpenDay(key);
                         }
                       }}
                       className={`relative min-h-[74px] sm:min-h-[104px] rounded-lg border p-1.5 sm:p-2 flex flex-col ${tone} ${
-                        traded ? "cursor-pointer hover:brightness-125 transition" : ""
+                        traded || news.length ? "cursor-pointer hover:brightness-125 transition" : ""
                       } ${key === todayKey ? "ring-1 ring-[#4ADE80]/60" : ""}`}
                     >
                       <span
@@ -1223,6 +1268,24 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth }) {
                           title={`${info.notes} note${info.notes > 1 ? "s" : ""}`}
                           className="absolute bottom-1.5 right-2 w-1.5 h-1.5 rounded-full bg-[#4ADE80]"
                         />
+                      )}
+
+                      {/* Economic releases: red folder for high impact, amber
+                          for medium. Sits top-left, opposite the date. */}
+                      {(redFolder.length > 0 || orangeFolder.length > 0) && (
+                        <span
+                          title={[...redFolder, ...orangeFolder]
+                            .map((n) => `${n.impact === "High" ? "🔴" : "🟠"} ${n.currency} ${n.title}`)
+                            .join("\n")}
+                          className={`absolute top-1.5 left-1.5 sm:top-2 sm:left-2 flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold leading-none ${
+                            redFolder.length
+                              ? "bg-[#F87171]/20 text-[#F87171]"
+                              : "bg-[#E0A32E]/20 text-[#E0A32E]"
+                          }`}
+                        >
+                          <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                          {redFolder.length || orangeFolder.length}
+                        </span>
                       )}
                     </div>
                   );
@@ -1286,6 +1349,7 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth }) {
         <DayDetailModal
           dateKey={openDay}
           trades={trades.filter((t) => t.date === openDay)}
+          news={newsByDay[openDay] || []}
           onClose={() => setOpenDay(null)}
         />
       )}
@@ -1481,7 +1545,7 @@ function DateRangeSheet({ range, from, to, onApply, onClose }) {
 /* ------------------------------------------------------------------
    Day detail — tap a calendar cell to see that day's trades.
    ------------------------------------------------------------------ */
-function DayDetailModal({ dateKey, trades, onClose }) {
+function DayDetailModal({ dateKey, trades, news = [], onClose }) {
   useEffect(() => {
     const onKey = (e) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", onKey);
@@ -1530,7 +1594,11 @@ function DayDetailModal({ dateKey, trades, onClose }) {
         </div>
 
         {/* Day summary */}
-        <div className="mx-4 rounded-lg border border-[#232529] flex divide-x divide-[#232529]">
+        <div
+          className={`mx-4 rounded-lg border border-[#232529] flex divide-x divide-[#232529] ${
+            trades.length ? "" : "hidden"
+          }`}
+        >
           <div className="flex-1 py-3 text-center">
             <p className="text-[9px] uppercase tracking-wider text-[#6E7076]">Net P&L</p>
             <p
@@ -1555,7 +1623,7 @@ function DayDetailModal({ dateKey, trades, onClose }) {
         )}
 
         {/* Per-trade breakdown */}
-        <div className="p-4 pt-4">
+        <div className={`p-4 pt-4 ${trades.length ? "" : "hidden"}`}>
           <h4 className="text-xs font-semibold mb-2">
             {trades.length} trade{trades.length === 1 ? "" : "s"}
           </h4>
@@ -1600,6 +1668,46 @@ function DayDetailModal({ dateKey, trades, onClose }) {
             </tbody>
           </table>
         </div>
+
+        {/* Economic releases scheduled that day */}
+        {news.length > 0 && (
+          <div className="px-4 pb-4">
+            <h4 className="text-xs font-semibold mb-2">Economic calendar</h4>
+            <ul className="space-y-2">
+              {news.map((n, i) => (
+                <li key={i} className="flex items-start gap-2.5">
+                  <span
+                    title={`${n.impact} impact`}
+                    className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${
+                      n.impact === "High"
+                        ? "bg-[#F87171]"
+                        : n.impact === "Medium"
+                        ? "bg-[#E0A32E]"
+                        : "bg-[#4A4D53]"
+                    }`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[12px] text-[#E4E6EA] leading-snug">{n.title}</p>
+                    <p className="text-[10px] text-[#6E7076] mt-0.5">
+                      {n.currency}
+                      <span className="mx-1.5 text-[#33363B]">·</span>
+                      {n.time.toLocaleTimeString("en-US", {
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                      {n.forecast && (
+                        <>
+                          <span className="mx-1.5 text-[#33363B]">·</span>
+                          forecast {n.forecast}
+                        </>
+                      )}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   );

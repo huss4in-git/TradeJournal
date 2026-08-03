@@ -1274,20 +1274,23 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
                       )}
 
                       {/* Economic releases: red folder for high impact, amber
-                          for medium. Sits top-left, opposite the date. */}
+                          for medium. A bare dot on mobile where there's no room
+                          for a count, a labelled badge from sm up. */}
                       {(redFolder.length > 0 || orangeFolder.length > 0) && (
                         <span
                           title={[...redFolder, ...orangeFolder]
-                            .map((n) => `${n.impact === "High" ? "🔴" : "🟠"} ${n.currency} ${n.title}`)
+                            .map((n) => `${n.currency} ${n.title}`)
                             .join("\n")}
-                          className={`absolute top-1.5 left-1.5 sm:top-2 sm:left-2 flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold leading-none ${
+                          className={`absolute top-1.5 left-1.5 sm:top-2 sm:left-2 flex items-center rounded-full sm:rounded sm:gap-1 sm:px-1.5 sm:py-0.5 text-[9px] font-semibold leading-none w-1.5 h-1.5 sm:w-auto sm:h-auto ${
                             redFolder.length
-                              ? "bg-[#F87171]/20 text-[#F87171]"
-                              : "bg-[#E0A32E]/20 text-[#E0A32E]"
+                              ? "bg-[#F87171] sm:bg-[#F87171]/20 text-[#F87171]"
+                              : "bg-[#E0A32E] sm:bg-[#E0A32E]/20 text-[#E0A32E]"
                           }`}
                         >
-                          <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                          {redFolder.length || orangeFolder.length}
+                          <span className="hidden sm:block w-1.5 h-1.5 rounded-full bg-current" />
+                          <span className="hidden sm:block">
+                            {redFolder.length || orangeFolder.length}
+                          </span>
                         </span>
                       )}
                     </div>

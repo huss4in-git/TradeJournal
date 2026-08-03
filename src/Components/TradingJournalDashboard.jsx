@@ -353,6 +353,7 @@ export default function TradingJournalDashboard({ session }) {
           currency: e.currency,
           impact: e.impact,
           forecast: e.forecast,
+          previous: e.previous,
           time: d,
         });
       });
@@ -1338,13 +1339,26 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
                                       hour: "numeric",
                                       minute: "2-digit",
                                     })}
-                                    {n.forecast && (
-                                      <>
-                                        <span className="mx-1 text-[#33363B]">·</span>
-                                        F: {n.forecast}
-                                      </>
-                                    )}
                                   </p>
+                                  {(n.forecast || n.previous) && (
+                                    <p className="text-[10px] mt-0.5">
+                                      {n.forecast && (
+                                        <span className="text-[#8A8D94]">
+                                          Forecast{" "}
+                                          <span className="text-[#C9CBD1]">{n.forecast}</span>
+                                        </span>
+                                      )}
+                                      {n.forecast && n.previous && (
+                                        <span className="mx-1.5 text-[#33363B]">·</span>
+                                      )}
+                                      {n.previous && (
+                                        <span className="text-[#8A8D94]">
+                                          Previous{" "}
+                                          <span className="text-[#C9CBD1]">{n.previous}</span>
+                                        </span>
+                                      )}
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                             ))}
@@ -1759,13 +1773,21 @@ function DayDetailModal({ dateKey, trades, news = [], onClose }) {
                         hour: "numeric",
                         minute: "2-digit",
                       })}
-                      {n.forecast && (
-                        <>
-                          <span className="mx-1.5 text-[#33363B]">·</span>
-                          forecast {n.forecast}
-                        </>
-                      )}
                     </p>
+                    {(n.forecast || n.previous) && (
+                      <div className="flex gap-3 mt-0.5">
+                        {n.forecast && (
+                          <span className="text-[10px] text-[#6E7076]">
+                            Forecast <span className="text-[#C9CBD1]">{n.forecast}</span>
+                          </span>
+                        )}
+                        {n.previous && (
+                          <span className="text-[10px] text-[#6E7076]">
+                            Previous <span className="text-[#C9CBD1]">{n.previous}</span>
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </li>
               ))}

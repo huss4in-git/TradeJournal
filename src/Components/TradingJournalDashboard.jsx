@@ -1274,45 +1274,49 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
                       )}
 
                       {/* Economic releases: red folder for high impact, amber
-                          for medium. A bare dot on mobile where there's no room
-                          for a count, a labelled badge from sm up. */}
+                          for medium. Bare dot on mobile, labelled badge with a
+                          hover card from sm up. */}
                       {(redFolder.length > 0 || orangeFolder.length > 0) && (
-                        <span className="absolute top-1.5 left-1.5 sm:top-2 sm:left-2 group/news">
-                          <span
-                            className={`flex items-center rounded-full sm:rounded sm:gap-1 sm:px-1.5 sm:py-0.5 text-[9px] font-semibold leading-none w-1.5 h-1.5 sm:w-auto sm:h-auto ${
-                              redFolder.length
-                                ? "bg-[#F87171] sm:bg-[#F87171]/20 text-[#F87171]"
-                                : "bg-[#E0A32E] sm:bg-[#E0A32E]/20 text-[#E0A32E]"
-                            }`}
-                          >
-                            <span className="hidden sm:block w-1.5 h-1.5 rounded-full bg-current" />
-                            <span className="hidden sm:block">
-                              {redFolder.length || orangeFolder.length}
-                            </span>
-                          </span>
+                        <div className="absolute top-1.5 left-1.5 sm:top-2 sm:left-2 group/news">
+                          {/* Mobile: plain dot. */}
+                          <div
+                            className="sm:hidden w-2 h-2 rounded-full"
+                            style={{ background: redFolder.length ? RED : "#E0A32E" }}
+                          />
 
-                          {/* Hover card listing that day's releases. Desktop only —
-                              on mobile, tapping the day opens the full popup. */}
-                          <span className="hidden sm:block pointer-events-none opacity-0 group-hover/news:opacity-100 transition-opacity absolute top-full left-0 mt-1.5 z-30 w-60 rounded-xl border border-[#2A2C31] bg-[#17181B] p-3 shadow-xl text-left">
-                            <span className="block text-[11px] font-semibold text-white mb-2">
+                          {/* Desktop: pill with the count. */}
+                          <div
+                            className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold leading-none"
+                            style={{
+                              background: `${redFolder.length ? RED : "#E0A32E"}26`,
+                              color: redFolder.length ? RED : "#E0A32E",
+                            }}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                            {redFolder.length || orangeFolder.length}
+                          </div>
+
+                          {/* Hover card. Desktop only — on mobile, tapping the
+                              day opens the full popup instead. */}
+                          <div className="hidden sm:block pointer-events-none opacity-0 group-hover/news:opacity-100 transition-opacity absolute top-full left-0 mt-1.5 z-30 w-60 rounded-xl border border-[#2A2C31] bg-[#17181B] p-3 shadow-xl">
+                            <p className="text-[11px] font-semibold text-white mb-2">
                               {new Date(year, month, d).toLocaleDateString("en-US", {
                                 weekday: "long",
                                 month: "short",
                                 day: "numeric",
                               })}
-                            </span>
+                            </p>
                             {[...redFolder, ...orangeFolder].map((n, ni) => (
-                              <span key={ni} className="flex items-start gap-2 mb-2 last:mb-0">
+                              <div key={ni} className="flex items-start gap-2 mb-2 last:mb-0">
                                 <span
-                                  className={`mt-1 w-1.5 h-1.5 rounded-full shrink-0 ${
-                                    n.impact === "High" ? "bg-[#F87171]" : "bg-[#E0A32E]"
-                                  }`}
+                                  className="mt-1 w-1.5 h-1.5 rounded-full shrink-0"
+                                  style={{ background: n.impact === "High" ? RED : "#E0A32E" }}
                                 />
-                                <span className="block min-w-0">
-                                  <span className="block text-[11px] text-[#E4E6EA] leading-snug">
+                                <div className="min-w-0">
+                                  <p className="text-[11px] text-[#E4E6EA] leading-snug">
                                     {n.title}
-                                  </span>
-                                  <span className="block text-[10px] text-[#6E7076] mt-0.5">
+                                  </p>
+                                  <p className="text-[10px] text-[#6E7076] mt-0.5">
                                     {n.currency}
                                     <span className="mx-1 text-[#33363B]">·</span>
                                     {n.time.toLocaleTimeString("en-US", {
@@ -1325,12 +1329,12 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
                                         F: {n.forecast}
                                       </>
                                     )}
-                                  </span>
-                                </span>
-                              </span>
+                                  </p>
+                                </div>
+                              </div>
                             ))}
-                          </span>
-                        </span>
+                          </div>
+                        </div>
                       )}
                     </div>
                   );

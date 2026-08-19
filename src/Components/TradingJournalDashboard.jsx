@@ -675,14 +675,15 @@ export default function TradingJournalDashboard({ session }) {
                   {visible.length}
                 </span>
               </div>
+              <div className="mt-2 min-h-[68px]">
               <p
-                className={`mt-2 text-2xl font-semibold ${
+                className={`text-2xl font-semibold leading-none ${
                   !hasData ? "text-[#4A4D53]" : stats.netPnl >= 0 ? "text-[#4ADE80]" : "text-[#F87171]"
                 }`}
               >
                 {hasData ? `${stats.netPnl >= 0 ? "+" : "-"}${currency(Math.abs(stats.netPnl))}` : "--"}
               </p>
-              <p className="mt-1.5 text-[11px] text-[#6E7076]">
+              <p className="mt-2.5 text-[11px] text-[#6E7076]">
                 {hasData ? (
                   <>
                     {currency(stats.grossPnl)} gross
@@ -695,21 +696,28 @@ export default function TradingJournalDashboard({ session }) {
                   "Add an entry to start tracking"
                 )}
               </p>
+              </div>
             </Card>
 
             <Card>
-              <Label>Trade win %</Label>
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-2xl font-semibold">{hasData ? `${stats.winRate.toFixed(2)}%` : "--"}</p>
+              {/* Label and value are one block so the ring centres against the
+                  whole card, not just the number. */}
+              <div className="flex items-center justify-between gap-3 min-h-[92px]">
+                <div>
+                  <Label>Trade win %</Label>
+                  <p className="mt-2 text-2xl font-semibold leading-none">
+                    {hasData ? `${stats.winRate.toFixed(2)}%` : "--"}
+                  </p>
+                </div>
                 <Gauge counts={stats.counts} show={hasData} noun="trades" />
               </div>
             </Card>
 
             <Card>
-              <Label>Profit factor</Label>
-              <div className="flex items-end justify-between gap-3">
+              <div className="flex items-center justify-between gap-3 min-h-[92px]">
                 <div>
-                  <p className="text-2xl font-semibold">
+                  <Label>Profit factor</Label>
+                  <p className="mt-2 text-2xl font-semibold leading-none">
                     {hasData
                       ? Number.isFinite(stats.profitFactor)
                         ? stats.profitFactor.toFixed(2)
@@ -732,21 +740,25 @@ export default function TradingJournalDashboard({ session }) {
           {/* KPI row 2 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
             <Card>
-              <Label>Day win %</Label>
-              <div className="flex items-center justify-between gap-4">
-                <p className="text-2xl font-semibold mb-1">
-                  {hasData ? `${stats.dayWinRate.toFixed(2)}%` : "--"}
-                </p>
+              <div className="flex items-center justify-between gap-3 min-h-[92px]">
+                <div>
+                  <Label>Day win %</Label>
+                  <p className="mt-2 text-2xl font-semibold leading-none">
+                    {hasData ? `${stats.dayWinRate.toFixed(2)}%` : "--"}
+                  </p>
+                </div>
                 <Gauge counts={stats.dayCounts} show={hasData} noun="days" />
               </div>
             </Card>
 
             <Card>
-              <Label>Avg win/loss trade</Label>
-              <div className="mt-5 flex items-center gap-5">
-                <p className="text-2xl font-semibold shrink-0">
-                  {hasData ? (Number.isFinite(stats.ratio) ? stats.ratio.toFixed(2) : "∞") : "--"}
-                </p>
+              <div className="flex items-center gap-5 min-h-[92px]">
+                <div className="shrink-0">
+                  <Label>Avg win/loss trade</Label>
+                  <p className="mt-2 text-2xl font-semibold leading-none">
+                    {hasData ? (Number.isFinite(stats.ratio) ? stats.ratio.toFixed(2) : "∞") : "--"}
+                  </p>
+                </div>
                 <SplitBar avgWin={stats.avgWin} avgLoss={stats.avgLoss} show={hasData} />
               </div>
             </Card>
@@ -1279,7 +1291,7 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
                       {traded && info.notes > 0 && (
                         <span
                           title={`${info.notes} note${info.notes > 1 ? "s" : ""}`}
-                          className="absolute bottom-1.5 left-1.5 sm:left-2 w-1.5 h-1.5 rounded-full bg-[#4ADE80]"
+                          className="absolute bottom-1.5 left-1.5 sm:left-2 w-[5px] h-[5px] sm:w-1.5 sm:h-1.5 rounded-full bg-[#4ADE80]"
                         />
                       )}
 
@@ -1290,7 +1302,7 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
                         <div className="absolute top-1.5 left-1.5 sm:top-2 sm:left-2 group/news">
                           {/* Mobile: plain dot. */}
                           <div
-                            className="sm:hidden w-2 h-2 rounded-full"
+                            className="sm:hidden w-1.5 h-1.5 rounded-full"
                             style={{ background: redFolder.length ? RED : "#E0A32E" }}
                           />
 
@@ -1775,7 +1787,7 @@ function DayDetailModal({ dateKey, trades, news = [], onClose }) {
                       })}
                     </p>
                     {(n.forecast || n.previous) && (
-                      <div className="flex gap-3 mt-0.5">
+                      <div className="flex gap-3 mt-1">
                         {n.forecast && (
                           <span className="text-[10px] text-[#6E7076]">
                             Forecast <span className="text-[#C9CBD1]">{n.forecast}</span>
@@ -1903,8 +1915,10 @@ function Gauge({ counts, show, noun = "trades" }) {
 
   let offset = 0;
   return (
-    <div className="shrink-0 flex flex-col items-center">
-      <svg width="86" height="48" viewBox="0 0 86 48">
+    // The arc is what has to line up with the number, so the chips hang
+    // below out of flow — otherwise they'd push the arc off centre.
+    <div className="relative shrink-0 w-[86px] h-[48px]">
+      <svg width="86" height="48" viewBox="0 0 86 48" className="block">
         <path
           d="M 17 42 A 26 26 0 0 1 69 42"
           fill="none"
@@ -1934,7 +1948,7 @@ function Gauge({ counts, show, noun = "trades" }) {
       </svg>
 
       {/* win · breakeven · loss counts, sitting under the arc */}
-      <div className=" flex items-center gap-1">
+      <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 flex items-center gap-1">
         {segs.map((s, i) => (
           <span
             key={i}

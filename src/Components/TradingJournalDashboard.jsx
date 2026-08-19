@@ -527,9 +527,9 @@ export default function TradingJournalDashboard({ session }) {
               <Logo />
             </div>
             <div className="flex items-center gap-2">
-              <button className="w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center cursor-default hover:border-[#2E3137] transition-colors">
+              {/* <button className="w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center cursor-default hover:border-[#2E3137] transition-colors">
                 <Bell size={15} className="text-[#8A8D94]" />
-              </button>
+              </button> */}
               <button
                 onClick={() => supabase.auth.signOut()}
                 title={session?.user?.email ? `Sign out ${session.user.email}` : "Sign out"}

@@ -2027,7 +2027,7 @@ function Gauge({ counts, show, noun = "trades" }) {
   return (
     // The arc is what has to line up with the number, so the chips hang
     // below out of flow — otherwise they'd push the arc off centre.
-    <div className="relative shrink-0 -mt-3 sm:mt-0 w-[72px] h-[41px] sm:w-[86px] sm:h-[48px]">
+    <div className="relative shrink-0 -mt-3 sm:mt-0 -mr-1 sm:mr-0 w-[72px] h-[41px] sm:w-[86px] sm:h-[48px]">
       <svg
         viewBox="0 0 86 48"
         className="block w-[72px] h-[41px] sm:w-[86px] sm:h-[48px]"

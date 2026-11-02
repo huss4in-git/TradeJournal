@@ -1988,7 +1988,9 @@ function Card({ title, children, className = "", noPad }) {
 
 function Label({ children }) {
   return (
-    <p className="text-[11px] uppercase tracking-wider text-[#6E7076] font-medium">{children}</p>
+    <p className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[#6E7076] font-medium">
+      {children}
+    </p>
   );
 }
 

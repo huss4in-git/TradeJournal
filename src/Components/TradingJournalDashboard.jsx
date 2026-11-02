@@ -33,6 +33,7 @@ import {
   Wallet,
   LogOut,
   ChevronDown,
+  Search,
   ChevronLeft,
   ChevronRight,
   CalendarDays,
@@ -242,6 +243,8 @@ export default function TradingJournalDashboard({ session }) {
     }
   }, [range, symbolFilter, customFrom, customTo]);
   const [showFilters, setShowFilters] = useState(false);
+  const [noteSearch, setNoteSearch] = useState("");
+  const [showSearch, setShowSearch] = useState(false);
 
   // Sticky offsets are driven by the real top bar height, published as a
   // CSS variable. Hardcoding it causes a few pixels of jump on scroll.
@@ -368,6 +371,13 @@ export default function TradingJournalDashboard({ session }) {
 
   // Your own symbols first, then the seed list — so what you actually
   // trade sits at the top of the dropdown.
+  // Reasons you've already written, offered as search suggestions.
+  const noteOptions = useMemo(
+    () =>
+      Array.from(new Set(trades.map((t) => (t.note || "").trim()).filter(Boolean))).sort(),
+    [trades]
+  );
+
   const symbolOptions = useMemo(
     () => Array.from(new Set([...symbols, ...DEFAULT_SYMBOLS])),
     [symbols]
@@ -387,8 +397,11 @@ export default function TradingJournalDashboard({ session }) {
       to = customTo || null;
     }
 
+    const q = noteSearch.trim().toLowerCase();
+
     return trades.filter((t) => {
       if (symbolFilter !== "all" && t.symbol !== symbolFilter) return false;
+      if (q && !(t.note || "").toLowerCase().includes(q)) return false;
 
       if (range === "custom") {
         if (from && t.date < from) return false;
@@ -399,7 +412,7 @@ export default function TradingJournalDashboard({ session }) {
       if (!from) return true;
       return new Date(t.date) >= from;
     });
-  }, [trades, range, symbolFilter, customFrom, customTo]);
+  }, [trades, range, symbolFilter, customFrom, customTo, noteSearch]);
 
   const stats = useMemo(() => computeStats(visible), [visible]);
   const series = useMemo(() => buildDailySeries(visible), [visible]);
@@ -417,10 +430,14 @@ export default function TradingJournalDashboard({ session }) {
   // The calendar has its own month navigation, so it ignores the date range —
   // otherwise stepping back a month would show an empty grid. Symbol filter
   // still applies.
-  const calendarTrades = useMemo(
-    () => trades.filter((t) => symbolFilter === "all" || t.symbol === symbolFilter),
-    [trades, symbolFilter]
-  );
+  const calendarTrades = useMemo(() => {
+    const q = noteSearch.trim().toLowerCase();
+    return trades.filter((t) => {
+      if (symbolFilter !== "all" && t.symbol !== symbolFilter) return false;
+      if (q && !(t.note || "").toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [trades, symbolFilter, noteSearch]);
   const calendar = useMemo(() => groupByDay(calendarTrades), [calendarTrades]);
   const hasData = visible.length > 0;
 
@@ -527,9 +544,9 @@ export default function TradingJournalDashboard({ session }) {
               <Logo />
             </div>
             <div className="flex items-center gap-2">
-              {/* <button className="w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center cursor-default hover:border-[#2E3137] transition-colors">
+              <button className="w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center cursor-default hover:border-[#2E3137] transition-colors">
                 <Bell size={15} className="text-[#8A8D94]" />
-              </button> */}
+              </button>
               <button
                 onClick={() => supabase.auth.signOut()}
                 title={session?.user?.email ? `Sign out ${session.user.email}` : "Sign out"}
@@ -543,24 +560,68 @@ export default function TradingJournalDashboard({ session }) {
         </div>
 
         {/* Mobile header */}
-        <div
-          ref={headRowRef}
-          className="sm:hidden bg-[#0A0A0B] border-b border-[#1D1F23] px-4 pt-4 pb-4 flex items-center justify-between gap-3"
-        >
-          <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
-          <button
-            onClick={() => setShowFilters((v) => !v)}
-            aria-expanded={showFilters}
-            aria-label="Date range"
-            className={`h-9 inline-flex items-center gap-1.5 px-3 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
-              showFilters
-                ? "bg-[#4ADE80]/10 border-[#4ADE80]/25 text-[#4ADE80]"
-                : "bg-[#17181B] border-[#232529] text-[#C9CBD1]"
-            }`}
-          >
-            <CalendarDays size={14} />
-            {rangeLabel}
-          </button>
+        <div ref={headRowRef} className="sm:hidden">
+          <div className="bg-[#0A0A0B] border-b border-[#1D1F23] px-4 pt-4 pb-4 flex items-center justify-between gap-3">
+            <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => setShowSearch((v) => !v)}
+                aria-expanded={showSearch}
+                aria-label="Search by reason"
+                className={`h-9 w-9 inline-flex items-center justify-center rounded-lg border cursor-pointer transition-colors ${
+                  showSearch || noteSearch
+                    ? "bg-[#4ADE80]/10 border-[#4ADE80]/25 text-[#4ADE80]"
+                    : "bg-[#17181B] border-[#232529] text-[#C9CBD1]"
+                }`}
+              >
+                <Search size={14} />
+              </button>
+              <button
+                onClick={() => setShowFilters((v) => !v)}
+                aria-expanded={showFilters}
+                aria-label="Date range"
+                className={`h-9 inline-flex items-center gap-1.5 px-3 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
+                  showFilters
+                    ? "bg-[#4ADE80]/10 border-[#4ADE80]/25 text-[#4ADE80]"
+                    : "bg-[#17181B] border-[#232529] text-[#C9CBD1]"
+                }`}
+              >
+                <CalendarDays size={14} />
+                {rangeLabel}
+              </button>
+            </div>
+          </div>
+
+          {/* Sits in the flow inside the measured header, so opening it pushes
+              the page down instead of covering the Add Entry row. */}
+          {showSearch && (
+            <div className="bg-[#0A0A0B] border-b border-[#1D1F23] px-4 pt-3 pb-3">
+              <div className="relative">
+                <Search
+                  size={14}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6E7076] pointer-events-none"
+                />
+                <input
+                  type="text"
+                  value={noteSearch}
+                  onChange={(e) => setNoteSearch(e.target.value)}
+                  placeholder="Search by reason or note…"
+                  list="note-options"
+                  autoFocus
+                  className="w-full h-9 pl-9 pr-9 rounded-lg bg-[#17181B] border border-[#232529] text-base text-[#C9CBD1] placeholder-[#4A4D53] focus:outline-none focus:border-[#4ADE80]/50 focus:ring-2 focus:ring-[#4ADE80]/15"
+                />
+                {noteSearch && (
+                  <button
+                    onClick={() => setNoteSearch("")}
+                    aria-label="Clear search"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[#6E7076] cursor-pointer hover:text-white"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -657,6 +718,19 @@ export default function TradingJournalDashboard({ session }) {
                 "Loading entries…"
               )}
             </p>
+            <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowSearch((v) => !v)}
+              aria-expanded={showSearch}
+              aria-label="Search by reason"
+              className={`hidden sm:inline-flex h-9 w-9 items-center justify-center rounded-lg border cursor-pointer transition-colors ${
+                showSearch || noteSearch
+                  ? "bg-[#4ADE80]/10 border-[#4ADE80]/25 text-[#4ADE80]"
+                  : "bg-[#17181B] border-[#232529] text-[#C9CBD1] hover:border-[#2E3137]"
+              }`}
+            >
+              <Search size={14} />
+            </button>
             <button
               onClick={() => setShowForm(true)}
               className="flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#4ADE80] text-[#08130C] text-sm font-semibold cursor-pointer hover:bg-[#3ECF74] transition-colors"
@@ -664,48 +738,87 @@ export default function TradingJournalDashboard({ session }) {
               <Plus size={15} />
               Add Entry
             </button>
+            </div>
           </div>
 
-          {/* KPI row 1 */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-            <Card>
-              <div className="flex items-center justify-between">
-                <Label>Net P&L</Label>
-                <span className="text-[11px] px-2 py-0.5 rounded-md bg-[#17181B] border border-[#232529] text-[#8A8D94]">
-                  {visible.length}
-                </span>
-              </div>
-              <div className="mt-2 min-h-[68px]">
-              <p
-                className={`text-2xl font-semibold leading-none ${
-                  !hasData ? "text-[#4A4D53]" : stats.netPnl >= 0 ? "text-[#4ADE80]" : "text-[#F87171]"
-                }`}
-              >
-                {hasData ? `${stats.netPnl >= 0 ? "+" : "-"}${currency(Math.abs(stats.netPnl))}` : "--"}
-              </p>
-              <p className="mt-2.5 text-[11px] text-[#6E7076]">
-                {hasData ? (
-                  <>
-                    {currency(stats.grossPnl)} gross
-                    <span className="mx-1.5 text-[#33363B]">·</span>
-                    <span className={stats.totalFees < 0 ? "text-[#F87171]" : undefined}>
-                      {currency(stats.totalFees)} fees
-                    </span>
-                  </>
-                ) : (
-                  "Add an entry to start tracking"
-                )}
-              </p>
+          {/* Desktop search field — opens from the icon, so it only takes
+              space when you're actually using it. */}
+          {showSearch && (
+            <div className="relative hidden sm:block w-full max-w-sm ml-auto mb-4">
+              <Search
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6E7076] pointer-events-none"
+              />
+              <input
+                type="text"
+                value={noteSearch}
+                onChange={(e) => setNoteSearch(e.target.value)}
+                placeholder="Search by reason or note…"
+                list="note-options"
+                autoFocus
+                className="w-full h-9 pl-9 pr-9 rounded-lg bg-[#17181B] border border-[#232529] text-xs text-[#C9CBD1] placeholder-[#4A4D53] hover:border-[#2E3137] focus:outline-none focus:border-[#4ADE80]/50 focus:ring-2 focus:ring-[#4ADE80]/15"
+              />
+              {noteSearch && (
+                <button
+                  onClick={() => setNoteSearch("")}
+                  aria-label="Clear search"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[#6E7076] cursor-pointer hover:text-white"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          )}
+
+          <datalist id="note-options">
+            {noteOptions.map((n) => (
+              <option key={n} value={n} />
+            ))}
+          </datalist>
+
+          {/* KPI cards. One grid so mobile pairs them two-up —
+              Net P&L | Trade win %, Profit factor | Day win %, then
+              Avg win/loss on its own. The md spans restore the 3 + 2
+              desktop layout. */}
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3 mb-3 sm:mb-6">
+            <Card className="md:col-span-2">
+              <div className="min-h-[92px]">
+                <div className="flex items-center justify-between gap-2">
+                  <Label>Net P&L</Label>
+                  <span className="text-[11px] px-2 py-0.5 rounded-md bg-[#17181B] border border-[#232529] text-[#8A8D94]">
+                    {visible.length}
+                  </span>
+                </div>
+                <p
+                  className={`mt-2 text-xl sm:text-2xl font-semibold leading-none ${
+                    !hasData ? "text-[#4A4D53]" : stats.netPnl >= 0 ? "text-[#4ADE80]" : "text-[#F87171]"
+                  }`}
+                >
+                  {hasData ? `${stats.netPnl >= 0 ? "+" : "-"}${currency(Math.abs(stats.netPnl))}` : "--"}
+                </p>
+                <p className="mt-2.5 text-[10px] sm:text-[11px] text-[#6E7076] leading-relaxed">
+                  {hasData ? (
+                    <>
+                      {currency(stats.grossPnl)} gross
+                      <span className="mx-1.5 text-[#33363B]">·</span>
+                      <span className={stats.totalFees < 0 ? "text-[#F87171]" : undefined}>
+                        {currency(stats.totalFees)} fees
+                      </span>
+                    </>
+                  ) : (
+                    "Add an entry to start tracking"
+                  )}
+                </p>
               </div>
             </Card>
 
-            <Card>
+            <Card className="md:col-span-2">
               {/* Label and value are one block so the ring centres against the
                   whole card, not just the number. */}
-              <div className="flex items-center justify-between gap-3 min-h-[92px]">
-                <div>
+              <div className="flex items-center justify-between gap-1.5 sm:gap-3 min-h-[92px]">
+                <div className="min-w-0">
                   <Label>Trade win %</Label>
-                  <p className="mt-2 text-2xl font-semibold leading-none">
+                  <p className="mt-2 text-xl sm:text-2xl font-semibold leading-none">
                     {hasData ? `${stats.winRate.toFixed(2)}%` : "--"}
                   </p>
                 </div>
@@ -713,18 +826,18 @@ export default function TradingJournalDashboard({ session }) {
               </div>
             </Card>
 
-            <Card>
-              <div className="flex items-center justify-between gap-3 min-h-[92px]">
-                <div>
+            <Card className="md:col-span-2">
+              <div className="flex items-center justify-between gap-1.5 sm:gap-3 min-h-[92px]">
+                <div className="min-w-0">
                   <Label>Profit factor</Label>
-                  <p className="mt-2 text-2xl font-semibold leading-none">
+                  <p className="mt-2 text-xl sm:text-2xl font-semibold leading-none">
                     {hasData
                       ? Number.isFinite(stats.profitFactor)
                         ? stats.profitFactor.toFixed(2)
                         : "∞"
                       : "--"}
                   </p>
-                  <p className="mt-2 text-[11px] text-[#6E7076]">
+                  <p className="mt-2 text-[10px] sm:text-[11px] text-[#6E7076]">
                     {hasData
                       ? stats.profitFactor >= 1
                         ? "Above breakeven"
@@ -735,15 +848,12 @@ export default function TradingJournalDashboard({ session }) {
                 <Donut win={stats.grossWin} loss={stats.grossLoss} show={hasData} />
               </div>
             </Card>
-          </div>
 
-          {/* KPI row 2 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-            <Card>
-              <div className="flex items-center justify-between gap-3 min-h-[92px]">
-                <div>
+            <Card className="md:col-span-3">
+              <div className="flex items-center justify-between gap-1.5 sm:gap-3 min-h-[92px]">
+                <div className="min-w-0">
                   <Label>Day win %</Label>
-                  <p className="mt-2 text-2xl font-semibold leading-none">
+                  <p className="mt-2 text-xl sm:text-2xl font-semibold leading-none">
                     {hasData ? `${stats.dayWinRate.toFixed(2)}%` : "--"}
                   </p>
                 </div>
@@ -751,11 +861,11 @@ export default function TradingJournalDashboard({ session }) {
               </div>
             </Card>
 
-            <Card>
-              <div className="flex items-center gap-5 min-h-[92px]">
+            <Card className="col-span-2 md:col-span-3">
+              <div className="flex items-center gap-4 sm:gap-5 min-h-[92px]">
                 <div className="shrink-0">
-                  <Label>Avg win/loss trade</Label>
-                  <p className="mt-2 text-2xl font-semibold leading-none">
+                  <Label>Avg win/loss</Label>
+                  <p className="mt-2 text-xl sm:text-2xl font-semibold leading-none">
                     {hasData ? (Number.isFinite(stats.ratio) ? stats.ratio.toFixed(2) : "∞") : "--"}
                   </p>
                 </div>
@@ -1302,7 +1412,7 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
                         <div className="absolute top-1.5 left-1.5 sm:top-2 sm:left-2 group/news">
                           {/* Mobile: plain dot. */}
                           <div
-                            className="sm:hidden w-1.5 h-1.5 rounded-full"
+                            className="sm:hidden w-[5px] h-[5px] rounded-full"
                             style={{ background: redFolder.length ? RED : "#E0A32E" }}
                           />
 
@@ -1871,7 +1981,7 @@ function Card({ title, children, className = "", noPad }) {
           <h2 className="text-[15px] font-semibold">{title}</h2>
         </div>
       )}
-      <div className={noPad ? "" : title ? "p-5 pt-3" : "p-4"}>{children}</div>
+      <div className={noPad ? "" : title ? "p-5 pt-3" : "p-3.5 sm:p-4"}>{children}</div>
     </div>
   );
 }
@@ -1917,8 +2027,11 @@ function Gauge({ counts, show, noun = "trades" }) {
   return (
     // The arc is what has to line up with the number, so the chips hang
     // below out of flow — otherwise they'd push the arc off centre.
-    <div className="relative shrink-0 w-[86px] h-[48px]">
-      <svg width="86" height="48" viewBox="0 0 86 48" className="block">
+    <div className="relative shrink-0 -mt-3 sm:mt-0 w-[72px] h-[41px] sm:w-[86px] sm:h-[48px]">
+      <svg
+        viewBox="0 0 86 48"
+        className="block w-[72px] h-[41px] sm:w-[86px] sm:h-[48px]"
+      >
         <path
           d="M 17 42 A 26 26 0 0 1 69 42"
           fill="none"
@@ -1948,12 +2061,12 @@ function Gauge({ counts, show, noun = "trades" }) {
       </svg>
 
       {/* win · breakeven · loss counts, sitting under the arc */}
-      <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 flex items-center gap-1">
+      <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-0.5 sm:-mt-1 flex items-center gap-0.5 sm:gap-1">
         {segs.map((s, i) => (
           <span
             key={i}
             title={s.label}
-            className="text-[11px] leading-none px-2 py-[3px] rounded-md border"
+            className="text-[9px] sm:text-[11px] leading-none px-1 sm:px-2 py-[2px] sm:py-[3px] rounded sm:rounded-md border"
             style={{
               color: show ? s.c : "#4A4D53",
               background: show ? `${s.c}14` : "#17181B",
@@ -1974,7 +2087,10 @@ function Donut({ win, loss, show }) {
   const total = win + loss;
   const winLen = total ? (win / total) * c : 0;
   return (
-    <svg width="65" height="65" viewBox="0 0 60 60" className="shrink-0 -rotate-90">
+    <svg
+      viewBox="0 0 60 60"
+      className="shrink-0 -rotate-90 w-[56px] h-[56px] sm:w-[65px] sm:h-[65px]"
+    >
       <circle cx="30" cy="30" r={r} fill="none" stroke="#232529" strokeWidth="6" />
       {show && total > 0 && (
         <>

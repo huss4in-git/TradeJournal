@@ -1,7 +1,8 @@
 import React from "react";
 
 /*
-  tradelog logo — ascending bars, mint on near-black.
+  tradelog logo — ascending bars. Mint on near-black in dark mode; in light
+  mode the ramp flips so the tallest bar is still the strongest one.
 
   <Logo />                full lockup for the top bar
   <Logo mark />           bars only, for a collapsed nav or favicon
@@ -9,17 +10,20 @@ import React from "react";
   <Logo boxed />          bars inside a rounded tile, better at small sizes
 */
 
-const GREEN = "#4ADE80";
-const GREEN_MID = "#2F7D51";
-const GREEN_DARK = "#1E5138";
+// The boxed tile is always dark, like the app icon, so its bars keep the
+// fixed mint ramp. The bare mark sits on the page and follows the theme.
+const FIXED = ["#1E5138", "#2F7D51", "#4ADE80"];
+const THEMED = ["var(--tl-logo-1)", "var(--tl-logo-2)", "var(--tl-logo-3)"];
 
 export function LogoMark({ size = 26, boxed = false }) {
+  const [short, mid, tall] = boxed ? FIXED : THEMED;
+
   // Three bars rising left to right, aligned on a common baseline.
   const bars = (
     <>
-      <rect x="2" y="20" width="7" height="14" rx="2" fill={GREEN_DARK} />
-      <rect x="13" y="12" width="7" height="22" rx="2" fill={GREEN_MID} />
-      <rect x="24" y="0" width="7" height="34" rx="2" fill={GREEN} />
+      <rect x="2" y="20" width="7" height="14" rx="2" style={{ fill: short }} />
+      <rect x="13" y="12" width="7" height="22" rx="2" style={{ fill: mid }} />
+      <rect x="24" y="0" width="7" height="34" rx="2" style={{ fill: tall }} />
     </>
   );
 
@@ -60,10 +64,10 @@ export default function Logo({ mark = false, boxed = false, size = 24, className
     <div className={`flex items-center gap-2.5 ${className}`}>
       <LogoMark size={size} boxed={boxed} />
       <span
-        className="font-medium tracking-tight leading-none text-white"
+        className="font-medium tracking-tight leading-none text-[color:var(--tl-tx)]"
         style={{ fontSize: size * 0.78 }}
       >
-        trade<span className="text-[#4ADE80]">log</span>
+        trade<span className="text-[color:var(--tl-pos-fill)]">log</span>
       </span>
     </div>
   );

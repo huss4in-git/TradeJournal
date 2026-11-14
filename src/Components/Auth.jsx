@@ -1,13 +1,15 @@
 import React, { useState } from "react";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Check, Eye, EyeOff, Loader2 } from "lucide-react";
 import Logo from "./Logo";
-import { supabase } from "../lib/supabaseClient";
+import ThemeToggle from "./ThemeToggle";
+import { supabase, setRemember, getRemember } from "../lib/supabaseClient";
 
 export default function Auth() {
   const [mode, setMode] = useState("signin"); // signin | signup
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [remember, setRememberState] = useState(getRemember());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
@@ -18,6 +20,7 @@ export default function Auth() {
     e.preventDefault();
     setError("");
     setBusy(true);
+    setRemember(remember); // decides localStorage vs sessionStorage
 
     const fn = isSignUp ? supabase.auth.signUp : supabase.auth.signInWithPassword;
     const { data, error } = await fn.call(supabase.auth, {
@@ -52,25 +55,32 @@ export default function Auth() {
   }
 
   const field =
-    "w-full bg-[#0D0E10] border border-[#232529] rounded-xl px-4 py-3 text-base sm:text-sm text-white placeholder-[#4A4D53] focus:outline-none focus:border-[#4ADE80]/50 focus:ring-2 focus:ring-[#4ADE80]/15 transition";
+    "w-full bg-[color:var(--tl-field)] border border-[color:var(--tl-line)] rounded-xl px-4 py-3 text-base sm:text-sm text-[color:var(--tl-tx)] placeholder:text-[color:var(--tl-tx-5)] focus:outline-none focus:border-[color:var(--tl-pos-focus)] focus:ring-2 focus:ring-[color:var(--tl-pos-ring)] transition";
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] text-white font-sans flex flex-col items-center justify-center px-4 py-10">
+    <div className="relative min-h-screen bg-[color:var(--tl-bg)] text-[color:var(--tl-tx)] font-sans flex flex-col items-center justify-center px-4 py-10">
+      <ThemeToggle className="absolute top-4 right-4" />
+
       <div className="mb-12">
         <Logo size={34} />
       </div>
 
       <div className="w-full max-w-[420px] relative">
         {/* thin lit edge along the top of the card, like a screen bezel catching light */}
-        <div className="absolute -top-px left-10 right-10 h-px bg-gradient-to-r from-transparent via-[#4ADE80]/40 to-transparent" />
+        <div
+          className="absolute -top-px left-10 right-10 h-px"
+          style={{
+            background: "linear-gradient(to right, transparent, var(--tl-pos-glow), transparent)",
+          }}
+        />
 
-        <div className="bg-[#121316] border border-[#232529] rounded-2xl p-7 sm:p-9">
+        <div className="bg-[color:var(--tl-surface)] border border-[color:var(--tl-line)] rounded-2xl p-7 sm:p-9">
           {sent ? (
             <div className="text-center py-6">
               <h1 className="text-xl font-semibold mb-2">Check your email</h1>
-              <p className="text-sm text-[#8A8D94] leading-relaxed">
+              <p className="text-sm text-[color:var(--tl-tx-3)] leading-relaxed">
                 We sent a confirmation link to{" "}
-                <span className="text-[#C9CBD1]">{email.trim()}</span>. Open it, then come back
+                <span className="text-[color:var(--tl-tx-2)]">{email.trim()}</span>. Open it, then come back
                 and sign in.
               </p>
               <button
@@ -79,7 +89,7 @@ export default function Auth() {
                   setMode("signin");
                   setPassword("");
                 }}
-                className="mt-6 text-sm font-medium text-[#4ADE80] hover:underline"
+                className="mt-6 text-sm font-medium text-[color:var(--tl-pos)] hover:underline"
               >
                 Back to sign in
               </button>
@@ -89,7 +99,7 @@ export default function Auth() {
               <h1 className="text-[26px] font-semibold text-center tracking-tight">
                 {isSignUp ? "Create your account" : "Sign in to Tradelog"}
               </h1>
-              <p className="text-sm text-[#6E7076] text-center mt-2 mb-7">
+              <p className="text-sm text-[color:var(--tl-tx-4)] text-center mt-2 mb-7">
                 {isSignUp ? "Already have an account?" : "New here?"}{" "}
                 <button
                   type="button"
@@ -97,7 +107,7 @@ export default function Auth() {
                     setMode(isSignUp ? "signin" : "signup");
                     setError("");
                   }}
-                  className="text-[#4ADE80] hover:underline font-medium"
+                  className="text-[color:var(--tl-pos)] hover:underline font-medium"
                 >
                   {isSignUp ? "Sign in" : "Sign up"}
                 </button>
@@ -146,7 +156,7 @@ export default function Auth() {
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
                       aria-label={showPassword ? "Hide password" : "Show password"}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6E7076] hover:text-[#C9CBD1] p-1"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[color:var(--tl-tx-4)] hover:text-[color:var(--tl-tx-2)] p-1"
                     >
                       {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                     </button>
@@ -154,11 +164,25 @@ export default function Auth() {
                 </div>
 
                 {!isSignUp && (
-                  <div className="flex justify-end">
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        autoComplete="off" // stops the browser restoring a stale tick on reload
+                        checked={remember}
+                        onChange={(e) => setRememberState(e.target.checked)}
+                        className="peer sr-only"
+                      />
+                      <span className="w-4 h-4 rounded border border-[color:var(--tl-line-strong)] bg-[color:var(--tl-field)] flex items-center justify-center peer-checked:bg-[color:var(--tl-accent)] peer-checked:border-[color:var(--tl-accent)] transition-colors">
+                        {remember && <Check size={12} className="text-[color:var(--tl-on-accent)]" strokeWidth={3} />}
+                      </span>
+                      <span className="text-xs text-[color:var(--tl-tx-3)]">Remember me</span>
+                    </label>
+
                     <button
                       type="button"
                       onClick={handleReset}
-                      className="text-xs text-[#6E7076] hover:text-[#4ADE80] transition-colors"
+                      className="text-xs text-[color:var(--tl-tx-4)] hover:text-[color:var(--tl-pos)] transition-colors"
                     >
                       Forgot your password?
                     </button>
@@ -166,7 +190,7 @@ export default function Auth() {
                 )}
 
                 {error && (
-                  <p className="text-xs text-[#F87171] bg-[#F87171]/10 border border-[#F87171]/25 rounded-lg px-3 py-2.5 leading-relaxed">
+                  <p className="text-xs text-[color:var(--tl-neg)] bg-[color:var(--tl-neg-soft)] border border-[color:var(--tl-neg-line)] rounded-lg px-3 py-2.5 leading-relaxed">
                     {error}
                   </p>
                 )}
@@ -174,7 +198,7 @@ export default function Auth() {
                 <button
                   type="submit"
                   disabled={busy}
-                  className="w-full h-12 rounded-xl bg-[#4ADE80] hover:bg-[#3ECF74] disabled:opacity-50 disabled:cursor-not-allowed text-[#08130C] text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
+                  className="w-full h-12 rounded-xl bg-[color:var(--tl-accent)] hover:bg-[color:var(--tl-accent-hover)] disabled:opacity-50 disabled:cursor-not-allowed text-[color:var(--tl-on-accent)] text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
                 >
                   {busy && <Loader2 size={16} className="animate-spin" />}
                   {isSignUp ? "Create account" : "Sign in"}
@@ -185,7 +209,7 @@ export default function Auth() {
         </div>
       </div>
 
-      <p className="mt-10 text-xs text-[#33363B]">
+      <p className="mt-10 text-xs text-[color:var(--tl-tx-6)]">
         tradelog · {new Date().getFullYear()}
       </p>
     </div>

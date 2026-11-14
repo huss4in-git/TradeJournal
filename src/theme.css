@@ -1,0 +1,162 @@
+/* ------------------------------------------------------------------
+   tradelog theme tokens
+
+   Every colour in the app reads from one of these variables, so a theme
+   is just a different set of values. Dark is the default; light applies
+   when <html data-theme="light"> is set (see src/lib/theme.js).
+
+   To tweak a colour, change it here — nothing in the components needs
+   to be touched.
+   ------------------------------------------------------------------ */
+
+   :root,
+   [data-theme="dark"] {
+     color-scheme: dark;
+   
+     /* Surfaces, darkest to lightest */
+     --tl-bg: #0A0A0B;          /* page */
+     --tl-chrome: #0D0E10;      /* top bar, icon rail */
+     --tl-field: #0D0E10;       /* text inputs */
+     --tl-well: #0F1012;        /* empty calendar days, week cards */
+     --tl-surface: #121316;     /* cards, modals */
+     --tl-raised: #17181B;      /* buttons */
+     --tl-subtle: #17181B;      /* chips, table header, hover fills */
+     --tl-row: rgba(23, 24, 27, 0.6); /* table row hover */
+     --tl-pop: #17181B;         /* tooltips, dropdowns */
+     --tl-track: #232529;       /* empty gauge / progress tracks */
+   
+     /* Lines */
+     --tl-line: #232529;
+     --tl-hair: #1D1F23;
+     --tl-well-line: #1A1C1F;
+     --tl-line-strong: #2E3137;
+     --tl-pop-line: #2A2C31;
+     --tl-pop-shadow: none;
+   
+     /* Text, strongest to faintest */
+     --tl-tx: #FFFFFF;
+     --tl-tx-1: #E4E6EA;
+     --tl-tx-2: #C9CBD1;
+     --tl-tx-3: #8A8D94;
+     --tl-tx-4: #6E7076;
+     --tl-tx-5: #4A4D53;
+     --tl-tx-6: #33363B;
+     --tl-rail: #5A5D63;
+   
+     /* Brand button */
+     --tl-accent: #4ADE80;
+     --tl-accent-hover: #3ECF74;
+     --tl-on-accent: #08130C;
+   
+     /* Profit */
+     --tl-pos: #4ADE80;         /* text */
+     --tl-pos-fill: #4ADE80;    /* chart marks */
+     --tl-pos-soft: rgba(74, 222, 128, 0.1);
+     --tl-pos-line: rgba(74, 222, 128, 0.25);
+     --tl-pos-focus: rgba(74, 222, 128, 0.5);
+     --tl-pos-ring: rgba(74, 222, 128, 0.15);
+     --tl-pos-today: rgba(74, 222, 128, 0.6);
+     --tl-pos-glow: rgba(74, 222, 128, 0.4);
+   
+     /* Loss */
+     --tl-neg: #F87171;
+     --tl-neg-fill: #F87171;
+     --tl-neg-soft: rgba(248, 113, 113, 0.1);
+     --tl-neg-line: rgba(248, 113, 113, 0.25);
+     --tl-neg-line-strong: rgba(248, 113, 113, 0.4);
+   
+     /* Breakeven */
+     --tl-flat: #60A5FA;
+     --tl-flat-fill: #60A5FA;
+     --tl-flat-soft: rgba(96, 165, 250, 0.1);
+     --tl-flat-line: rgba(96, 165, 250, 0.25);
+   
+     /* Medium-impact news */
+     --tl-warn: #E0A32E;
+     --tl-warn-fill: #E0A32E;
+     --tl-warn-soft: rgba(224, 163, 46, 0.15);
+   
+     /* Misc */
+     --tl-scrim: rgba(0, 0, 0, 0.7);   /* behind modals */
+     --tl-cell-hover: 1.25;            /* calendar day hover: brighten */
+     --tl-logo-1: #1E5138;             /* logo bars, short to tall */
+     --tl-logo-2: #2F7D51;
+     --tl-logo-3: #4ADE80;
+   }
+   
+   [data-theme="light"] {
+     color-scheme: light;
+   
+     --tl-bg: #F4F5F7;
+     --tl-chrome: #FFFFFF;
+     --tl-field: #F7F8FA;
+     --tl-well: #F7F8FA;
+     --tl-surface: #FFFFFF;
+     --tl-raised: #FFFFFF;
+     --tl-subtle: #F3F4F6;
+     --tl-row: #F7F8FA;
+     --tl-pop: #FFFFFF;
+     --tl-track: #E7E9ED;
+   
+     --tl-line: #E2E4E9;
+     --tl-hair: #ECEEF1;
+     --tl-well-line: #ECEEF1;
+     --tl-line-strong: #C6CAD2;
+     --tl-pop-line: #DADDE3;
+     --tl-pop-shadow: 0 10px 30px rgba(15, 18, 24, 0.1);
+   
+     --tl-tx: #0E1116;
+     --tl-tx-1: #1F242B;
+     --tl-tx-2: #3A404A;
+     --tl-tx-3: #5F6672;
+     --tl-tx-4: #6B7280;
+     --tl-tx-5: #9AA0AA;
+     --tl-tx-6: #C5C9D0;
+     --tl-rail: #8B919B;
+   
+     /* The dark-mode mint (#4ADE80) taken one small step darker, so it
+        holds up on white. Buttons, charts and highlights. */
+     --tl-accent: #36D26F;
+     --tl-accent-hover: #2BC563;
+     --tl-on-accent: #08130C;
+   
+     /* Green TEXT (profit numbers, links, active tabs): one more small step
+        darker than the buttons so numbers stay readable. For stronger text,
+        try #1FA855 or #15803D here. */
+     --tl-pos: #25B95E;
+     --tl-pos-fill: #36D26F;
+     --tl-pos-soft: rgba(54, 210, 111, 0.16);
+     --tl-pos-line: rgba(54, 210, 111, 0.55);
+     --tl-pos-focus: rgba(54, 210, 111, 0.85);
+     --tl-pos-ring: rgba(54, 210, 111, 0.28);
+     --tl-pos-today: rgba(54, 210, 111, 1);
+     --tl-pos-glow: rgba(54, 210, 111, 0.65);
+   
+     --tl-neg: #DC2626;
+     --tl-neg-fill: #EF4444;
+     --tl-neg-soft: rgba(220, 38, 38, 0.08);
+     --tl-neg-line: rgba(220, 38, 38, 0.25);
+     --tl-neg-line-strong: rgba(220, 38, 38, 0.45);
+   
+     --tl-flat: #2563EB;
+     --tl-flat-fill: #3B82F6;
+     --tl-flat-soft: rgba(37, 99, 235, 0.08);
+     --tl-flat-line: rgba(37, 99, 235, 0.25);
+   
+     --tl-warn: #B45309;
+     --tl-warn-fill: #D97706;
+     --tl-warn-soft: rgba(217, 119, 6, 0.14);
+   
+     --tl-scrim: rgba(15, 18, 24, 0.45);
+     --tl-cell-hover: 0.96;            /* brightening does nothing on white, so darken */
+     --tl-logo-1: #1E5138;             /* same logo bars as dark mode */
+     --tl-logo-2: #2F7D51;
+     --tl-logo-3: #36D26F;
+   }
+   
+   /* The area outside the app (overscroll bounce on phones, the moment before
+      the app paints) follows the theme too. */
+   html[data-theme],
+   html[data-theme] body {
+     background-color: var(--tl-bg);
+   }

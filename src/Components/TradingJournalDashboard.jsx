@@ -1,5 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Logo from "./Logo";
+import ThemeToggle from "./ThemeToggle";
 import {
   XAxis,
   YAxis,
@@ -42,13 +43,15 @@ import { supabase } from "../lib/supabaseClient";
 
 /* ------------------------------------------------------------------
    Theme
-   bg #0A0A0B · surface #121316 · raised #17181B · border #232529
-   text #FFFFFF · muted #8A8D94 · dim #6E7076
-   green #4ADE80 · red #F87171 · flat #60A5FA
+   Colours are CSS variables defined in src/theme.css, one set for dark
+   and one for light. Classes read them as bg-[color:var(--tl-surface)],
+   and charts take the same variables as plain strings, so switching
+   theme recolours everything without a re-render.
    ------------------------------------------------------------------ */
-const GREEN = "#4ADE80";
-const RED = "#F87171";
-const FLAT = "#60A5FA";
+const GREEN = "var(--tl-pos-fill)";
+const RED = "var(--tl-neg-fill)";
+const FLAT = "var(--tl-flat-fill)";
+const AMBER = "var(--tl-warn-fill)";
 
 // Starting equity used to draw the balance line. Set this to your account size.
 const STARTING_BALANCE = 1000;
@@ -523,7 +526,7 @@ export default function TradingJournalDashboard({ session }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0B] text-white font-sans">
+    <div className="min-h-screen bg-[color:var(--tl-bg)] text-[color:var(--tl-tx)] font-sans">
       {/* Top bar and the mobile Dashboard row sit in one sticky container.
           The bar lives in a shell whose height animates to zero; the bar is
           anchored to the shell's bottom, so it slides up out of view rather
@@ -538,20 +541,21 @@ export default function TradingJournalDashboard({ session }) {
         >
           <div
             ref={topBarRef}
-            className="absolute inset-x-0 bottom-0 bg-[#0D0E10] border-b border-[#1D1F23] px-4 sm:px-6 py-3.5 flex items-center justify-between"
+            className="absolute inset-x-0 bottom-0 bg-[color:var(--tl-chrome)] border-b border-[color:var(--tl-hair)] px-4 sm:px-6 py-3.5 flex items-center justify-between"
           >
             <div className="flex items-center gap-3">
               <Logo />
             </div>
             <div className="flex items-center gap-2">
-              <button className="w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center cursor-default hover:border-[#2E3137] transition-colors">
-                <Bell size={15} className="text-[#8A8D94]" />
+              <button className="w-9 h-9 rounded-lg bg-[color:var(--tl-raised)] border border-[color:var(--tl-line)] flex items-center justify-center cursor-default hover:border-[color:var(--tl-line-strong)] transition-colors">
+                <Bell size={15} className="text-[color:var(--tl-tx-3)]" />
               </button>
+              <ThemeToggle />
               <button
                 onClick={() => supabase.auth.signOut()}
                 title={session?.user?.email ? `Sign out ${session.user.email}` : "Sign out"}
                 aria-label="Sign out"
-                className="w-9 h-9 rounded-lg bg-[#17181B] border border-[#232529] flex items-center justify-center cursor-pointer hover:border-[#F87171]/40 hover:text-[#F87171] text-[#8A8D94] transition-colors"
+                className="w-9 h-9 rounded-lg bg-[color:var(--tl-raised)] border border-[color:var(--tl-line)] flex items-center justify-center cursor-pointer hover:border-[color:var(--tl-neg-line-strong)] hover:text-[color:var(--tl-neg)] text-[color:var(--tl-tx-3)] transition-colors"
               >
                 <LogOut size={15} />
               </button>
@@ -561,7 +565,7 @@ export default function TradingJournalDashboard({ session }) {
 
         {/* Mobile header */}
         <div ref={headRowRef} className="sm:hidden">
-          <div className="bg-[#0A0A0B] border-b border-[#1D1F23] px-4 pt-4 pb-4 flex items-center justify-between gap-3">
+          <div className="bg-[color:var(--tl-bg)] border-b border-[color:var(--tl-hair)] px-4 pt-4 pb-4 flex items-center justify-between gap-3">
             <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
             <div className="flex items-center gap-2 shrink-0">
               <button
@@ -570,8 +574,8 @@ export default function TradingJournalDashboard({ session }) {
                 aria-label="Search by reason"
                 className={`h-9 w-9 inline-flex items-center justify-center rounded-lg border cursor-pointer transition-colors ${
                   showSearch || noteSearch
-                    ? "bg-[#4ADE80]/10 border-[#4ADE80]/25 text-[#4ADE80]"
-                    : "bg-[#17181B] border-[#232529] text-[#C9CBD1]"
+                    ? "bg-[color:var(--tl-pos-soft)] border-[color:var(--tl-pos-line)] text-[color:var(--tl-pos)]"
+                    : "bg-[color:var(--tl-raised)] border-[color:var(--tl-line)] text-[color:var(--tl-tx-2)]"
                 }`}
               >
                 <Search size={14} />
@@ -582,8 +586,8 @@ export default function TradingJournalDashboard({ session }) {
                 aria-label="Date range"
                 className={`h-9 inline-flex items-center gap-1.5 px-3 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
                   showFilters
-                    ? "bg-[#4ADE80]/10 border-[#4ADE80]/25 text-[#4ADE80]"
-                    : "bg-[#17181B] border-[#232529] text-[#C9CBD1]"
+                    ? "bg-[color:var(--tl-pos-soft)] border-[color:var(--tl-pos-line)] text-[color:var(--tl-pos)]"
+                    : "bg-[color:var(--tl-raised)] border-[color:var(--tl-line)] text-[color:var(--tl-tx-2)]"
                 }`}
               >
                 <CalendarDays size={14} />
@@ -595,11 +599,11 @@ export default function TradingJournalDashboard({ session }) {
           {/* Sits in the flow inside the measured header, so opening it pushes
               the page down instead of covering the Add Entry row. */}
           {showSearch && (
-            <div className="bg-[#0A0A0B] border-b border-[#1D1F23] px-4 pt-3 pb-3">
+            <div className="bg-[color:var(--tl-bg)] border-b border-[color:var(--tl-hair)] px-4 pt-3 pb-3">
               <div className="relative">
                 <Search
                   size={14}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6E7076] pointer-events-none"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--tl-tx-4)] pointer-events-none"
                 />
                 <input
                   type="text"
@@ -608,13 +612,13 @@ export default function TradingJournalDashboard({ session }) {
                   placeholder="Search by reason or note…"
                   list="note-options"
                   autoFocus
-                  className="w-full h-9 pl-9 pr-9 rounded-lg bg-[#17181B] border border-[#232529] text-base text-[#C9CBD1] placeholder-[#4A4D53] focus:outline-none focus:border-[#4ADE80]/50 focus:ring-2 focus:ring-[#4ADE80]/15"
+                  className="w-full h-9 pl-9 pr-9 rounded-lg bg-[color:var(--tl-raised)] border border-[color:var(--tl-line)] text-base text-[color:var(--tl-tx-2)] placeholder:text-[color:var(--tl-tx-5)] focus:outline-none focus:border-[color:var(--tl-pos-focus)] focus:ring-2 focus:ring-[color:var(--tl-pos-ring)]"
                 />
                 {noteSearch && (
                   <button
                     onClick={() => setNoteSearch("")}
                     aria-label="Clear search"
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[#6E7076] cursor-pointer hover:text-white"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[color:var(--tl-tx-4)] cursor-pointer hover:text-[color:var(--tl-tx)]"
                   >
                     <X size={14} />
                   </button>
@@ -631,13 +635,13 @@ export default function TradingJournalDashboard({ session }) {
 
       <div className="flex">
         {/* Icon rail */}
-        <nav className="hidden lg:flex w-16 shrink-0 flex-col items-center gap-1.5 py-5 bg-[#0D0E10] border-r border-[#1D1F23] sticky top-[var(--topbar-h,64px)] h-[calc(100vh-var(--topbar-h,64px))] self-start">
+        <nav className="hidden lg:flex w-16 shrink-0 flex-col items-center gap-1.5 py-5 bg-[color:var(--tl-chrome)] border-r border-[color:var(--tl-hair)] sticky top-[var(--topbar-h,64px)] h-[calc(100vh-var(--topbar-h,64px))] self-start">
           <RailButton icon={LayoutGrid} active />
           <RailButton icon={CandlestickChart} />
           <RailButton icon={NotebookPen} />
           <RailButton icon={BarChart3} />
           <RailButton icon={ClipboardList} />
-          <div className="h-px w-7 bg-[#1D1F23] my-2" />
+          <div className="h-px w-7 bg-[color:var(--tl-hair)] my-2" />
           <RailButton icon={TrendingUp} />
           <RailButton icon={Wallet} />
         </nav>
@@ -647,13 +651,13 @@ export default function TradingJournalDashboard({ session }) {
           <div className="hidden sm:flex items-center justify-between mb-1 flex-wrap gap-3">
             <div>
               <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-              <p className="text-sm text-[#6E7076] mt-0.5">
+              <p className="text-sm text-[color:var(--tl-tx-4)] mt-0.5">
                 Performance metrics and trading history
               </p>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="inline-flex h-9 items-center gap-2 px-3.5 rounded-lg bg-[#4ADE80]/10 border border-[#4ADE80]/25 text-xs font-medium text-[#4ADE80]">
-                <span className="w-1.5 h-1.5 rounded-full bg-[#4ADE80]" />
+              <span className="inline-flex h-9 items-center gap-2 px-3.5 rounded-lg bg-[color:var(--tl-pos-soft)] border border-[color:var(--tl-pos-line)] text-xs font-medium text-[color:var(--tl-pos)]">
+                <span className="w-1.5 h-1.5 rounded-full bg-[color:var(--tl-accent)]" />
                 Manual entries
               </span>
               <Select value={symbolFilter} onChange={setSymbolFilter} label="Symbol">
@@ -669,8 +673,8 @@ export default function TradingJournalDashboard({ session }) {
                 aria-expanded={showFilters}
                 className={`h-9 inline-flex items-center gap-1.5 px-3.5 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
                   showFilters
-                    ? "bg-[#4ADE80]/10 border-[#4ADE80]/25 text-[#4ADE80]"
-                    : "bg-[#17181B] border-[#232529] text-[#C9CBD1] hover:border-[#2E3137]"
+                    ? "bg-[color:var(--tl-pos-soft)] border-[color:var(--tl-pos-line)] text-[color:var(--tl-pos)]"
+                    : "bg-[color:var(--tl-raised)] border-[color:var(--tl-line)] text-[color:var(--tl-tx-2)] hover:border-[color:var(--tl-line-strong)]"
                 }`}
               >
                 <CalendarDays size={14} />
@@ -694,22 +698,22 @@ export default function TradingJournalDashboard({ session }) {
             />
           )}
 
-          <div className="hidden sm:block h-px bg-[#1D1F23] my-4" />
+          <div className="hidden sm:block h-px bg-[color:var(--tl-hair)] my-4" />
 
           {/* Meta row */}
           <div className="flex items-center justify-between gap-3 flex-wrap mt-3 sm:mt-0 mb-4">
-            <p className="text-xs text-[#6E7076]">
+            <p className="text-xs text-[color:var(--tl-tx-4)]">
               {lastEntry ? (
                 <>
                   Last entry{" "}
-                  <span className="text-[#C9CBD1] font-medium">
+                  <span className="text-[color:var(--tl-tx-2)] font-medium">
                     {new Date(lastEntry).toLocaleDateString("en-US", {
                       month: "short",
                       day: "numeric",
                       year: "numeric",
                     })}
                   </span>
-                  <span className="mx-2 text-[#33363B]">·</span>
+                  <span className="mx-2 text-[color:var(--tl-tx-6)]">·</span>
                   {visible.length} of {trades.length} shown
                 </>
               ) : loaded ? (
@@ -725,15 +729,15 @@ export default function TradingJournalDashboard({ session }) {
               aria-label="Search by reason"
               className={`hidden sm:inline-flex h-9 w-9 items-center justify-center rounded-lg border cursor-pointer transition-colors ${
                 showSearch || noteSearch
-                  ? "bg-[#4ADE80]/10 border-[#4ADE80]/25 text-[#4ADE80]"
-                  : "bg-[#17181B] border-[#232529] text-[#C9CBD1] hover:border-[#2E3137]"
+                  ? "bg-[color:var(--tl-pos-soft)] border-[color:var(--tl-pos-line)] text-[color:var(--tl-pos)]"
+                  : "bg-[color:var(--tl-raised)] border-[color:var(--tl-line)] text-[color:var(--tl-tx-2)] hover:border-[color:var(--tl-line-strong)]"
               }`}
             >
               <Search size={14} />
             </button>
             <button
               onClick={() => setShowForm(true)}
-              className="flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[#4ADE80] text-[#08130C] text-sm font-semibold cursor-pointer hover:bg-[#3ECF74] transition-colors"
+              className="flex items-center gap-1.5 h-9 px-4 rounded-lg bg-[color:var(--tl-accent)] text-[color:var(--tl-on-accent)] text-sm font-semibold cursor-pointer hover:bg-[color:var(--tl-accent-hover)] transition-colors"
             >
               <Plus size={15} />
               Add Entry
@@ -747,7 +751,7 @@ export default function TradingJournalDashboard({ session }) {
             <div className="relative hidden sm:block w-full max-w-sm ml-auto mb-4">
               <Search
                 size={14}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6E7076] pointer-events-none"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-[color:var(--tl-tx-4)] pointer-events-none"
               />
               <input
                 type="text"
@@ -756,13 +760,13 @@ export default function TradingJournalDashboard({ session }) {
                 placeholder="Search by reason or note…"
                 list="note-options"
                 autoFocus
-                className="w-full h-9 pl-9 pr-9 rounded-lg bg-[#17181B] border border-[#232529] text-xs text-[#C9CBD1] placeholder-[#4A4D53] hover:border-[#2E3137] focus:outline-none focus:border-[#4ADE80]/50 focus:ring-2 focus:ring-[#4ADE80]/15"
+                className="w-full h-9 pl-9 pr-9 rounded-lg bg-[color:var(--tl-raised)] border border-[color:var(--tl-line)] text-xs text-[color:var(--tl-tx-2)] placeholder:text-[color:var(--tl-tx-5)] hover:border-[color:var(--tl-line-strong)] focus:outline-none focus:border-[color:var(--tl-pos-focus)] focus:ring-2 focus:ring-[color:var(--tl-pos-ring)]"
               />
               {noteSearch && (
                 <button
                   onClick={() => setNoteSearch("")}
                   aria-label="Clear search"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[#6E7076] cursor-pointer hover:text-white"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-[color:var(--tl-tx-4)] cursor-pointer hover:text-[color:var(--tl-tx)]"
                 >
                   <X size={14} />
                 </button>
@@ -785,23 +789,23 @@ export default function TradingJournalDashboard({ session }) {
               <div className="min-h-[92px]">
                 <div className="flex items-center justify-between gap-2">
                   <Label>Net P&L</Label>
-                  <span className="text-[11px] px-2 py-0.5 rounded-md bg-[#17181B] border border-[#232529] text-[#8A8D94]">
+                  <span className="text-[11px] px-2 py-0.5 rounded-md bg-[color:var(--tl-subtle)] border border-[color:var(--tl-line)] text-[color:var(--tl-tx-3)]">
                     {visible.length}
                   </span>
                 </div>
                 <p
                   className={`mt-2 text-xl sm:text-2xl font-semibold leading-none ${
-                    !hasData ? "text-[#4A4D53]" : stats.netPnl >= 0 ? "text-[#4ADE80]" : "text-[#F87171]"
+                    !hasData ? "text-[color:var(--tl-tx-5)]" : stats.netPnl >= 0 ? "text-[color:var(--tl-pos)]" : "text-[color:var(--tl-neg)]"
                   }`}
                 >
                   {hasData ? `${stats.netPnl >= 0 ? "+" : "-"}${currency(Math.abs(stats.netPnl))}` : "--"}
                 </p>
-                <p className="mt-2.5 text-[10px] sm:text-[11px] text-[#6E7076] leading-relaxed">
+                <p className="mt-2.5 text-[10px] sm:text-[11px] text-[color:var(--tl-tx-4)] leading-relaxed">
                   {hasData ? (
                     <>
                       {currency(stats.grossPnl)} gross
-                      <span className="mx-1.5 text-[#33363B]">·</span>
-                      <span className={stats.totalFees < 0 ? "text-[#F87171]" : undefined}>
+                      <span className="mx-1.5 text-[color:var(--tl-tx-6)]">·</span>
+                      <span className={stats.totalFees < 0 ? "text-[color:var(--tl-neg)]" : undefined}>
                         {currency(stats.totalFees)} fees
                       </span>
                     </>
@@ -837,7 +841,7 @@ export default function TradingJournalDashboard({ session }) {
                         : "∞"
                       : "--"}
                   </p>
-                  <p className="mt-2 text-[10px] sm:text-[11px] text-[#6E7076]">
+                  <p className="mt-2 text-[10px] sm:text-[11px] text-[color:var(--tl-tx-4)]">
                     {hasData
                       ? stats.profitFactor >= 1
                         ? "Above breakeven"
@@ -890,17 +894,17 @@ export default function TradingJournalDashboard({ session }) {
                         <stop offset="100%" stopColor={GREEN} stopOpacity={0} />
                       </linearGradient>
                     </defs>
-                    <CartesianGrid stroke="#1D1F23" vertical={false} />
+                    <CartesianGrid stroke="var(--tl-hair)" vertical={false} />
                     <XAxis
                       dataKey="label"
-                      stroke="#1D1F23"
-                      tick={{ fontSize: 11, fill: "#6E7076" }}
+                      stroke="var(--tl-hair)"
+                      tick={{ fontSize: 11, fill: "var(--tl-tx-4)" }}
                       tickLine={false}
                       interval="preserveStartEnd"
                       minTickGap={28}
                     />
                     <YAxis
-                      tick={{ fontSize: 11, fill: "#6E7076" }}
+                      tick={{ fontSize: 11, fill: "var(--tl-tx-4)" }}
                       axisLine={false}
                       tickLine={false}
                       width={54}
@@ -925,24 +929,24 @@ export default function TradingJournalDashboard({ session }) {
               {hasData ? (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={series} margin={{ top: 10, right: 8, left: -10, bottom: 0 }}>
-                    <CartesianGrid stroke="#1D1F23" vertical={false} />
+                    <CartesianGrid stroke="var(--tl-hair)" vertical={false} />
                     <XAxis
                       dataKey="label"
-                      stroke="#1D1F23"
-                      tick={{ fontSize: 11, fill: "#6E7076" }}
+                      stroke="var(--tl-hair)"
+                      tick={{ fontSize: 11, fill: "var(--tl-tx-4)" }}
                       tickLine={false}
                       interval="preserveStartEnd"
                       minTickGap={28}
                     />
                     <YAxis
-                      tick={{ fontSize: 11, fill: "#6E7076" }}
+                      tick={{ fontSize: 11, fill: "var(--tl-tx-4)" }}
                       axisLine={false}
                       tickLine={false}
                       width={54}
                       tickFormatter={compact}
                     />
                     <Tooltip
-                      cursor={{ fill: "#17181B" }}
+                      cursor={{ fill: "var(--tl-subtle)" }}
                       contentStyle={tooltipStyle}
                       itemStyle={itemStyle}
                       labelStyle={labelStyle}
@@ -988,17 +992,17 @@ export default function TradingJournalDashboard({ session }) {
                             <stop offset={splitAt} stopColor={RED} />
                           </linearGradient>
                         </defs>
-                        <CartesianGrid stroke="#1D1F23" vertical={false} />
+                        <CartesianGrid stroke="var(--tl-hair)" vertical={false} />
                         <XAxis
                           dataKey="label"
-                          stroke="#1D1F23"
-                          tick={{ fontSize: 11, fill: "#6E7076" }}
+                          stroke="var(--tl-hair)"
+                          tick={{ fontSize: 11, fill: "var(--tl-tx-4)" }}
                           tickLine={false}
                           interval="preserveStartEnd"
                           minTickGap={30}
                         />
                         <YAxis
-                          tick={{ fontSize: 11, fill: "#6E7076" }}
+                          tick={{ fontSize: 11, fill: "var(--tl-tx-4)" }}
                           axisLine={false}
                           tickLine={false}
                           width={58}
@@ -1011,7 +1015,7 @@ export default function TradingJournalDashboard({ session }) {
                           labelStyle={labelStyle}
                           formatter={(v) => [currency(v), "Balance"]}
                         />
-                        <ReferenceLine y={STARTING_BALANCE} stroke="#4A4D53" strokeDasharray="4 4" />
+                        <ReferenceLine y={STARTING_BALANCE} stroke="var(--tl-tx-5)" strokeDasharray="4 4" />
                         <Area
                           type="monotone"
                           dataKey="balance"
@@ -1023,19 +1027,19 @@ export default function TradingJournalDashboard({ session }) {
                       </AreaChart>
                     </ResponsiveContainer>
 
-                    <div className="mt-3 pt-3 border-t border-[#1D1F23] flex items-center justify-between text-xs">
+                    <div className="mt-3 pt-3 border-t border-[color:var(--tl-hair)] flex items-center justify-between text-xs">
                       <span className="font-semibold">
                         {currency(stats.balance)}{" "}
-                        <span className="text-[#6E7076] font-normal">balance</span>
+                        <span className="text-[color:var(--tl-tx-4)] font-normal">balance</span>
                       </span>
                       <span
                         className={`font-semibold ${
-                          stats.netPnl >= 0 ? "text-[#4ADE80]" : "text-[#F87171]"
+                          stats.netPnl >= 0 ? "text-[color:var(--tl-pos)]" : "text-[color:var(--tl-neg)]"
                         }`}
                       >
                         {stats.netPnl >= 0 ? "+" : "-"}
                         {currency(Math.abs(stats.netPnl))}{" "}
-                        <span className="text-[#6E7076] font-normal">net P&L</span>
+                        <span className="text-[color:var(--tl-tx-4)] font-normal">net P&L</span>
                       </span>
                     </div>
                   </>
@@ -1077,13 +1081,14 @@ export default function TradingJournalDashboard({ session }) {
 }
 
 const tooltipStyle = {
-  background: "#17181B",
-  border: "1px solid #2A2C31",
+  background: "var(--tl-pop)",
+  border: "1px solid var(--tl-pop-line)",
   borderRadius: 10,
   fontSize: 12,
+  boxShadow: "var(--tl-pop-shadow)",
 };
-const itemStyle = { color: "#FFFFFF" };
-const labelStyle = { color: "#6E7076", fontSize: 11 };
+const itemStyle = { color: "var(--tl-tx)" };
+const labelStyle = { color: "var(--tl-tx-4)", fontSize: 11 };
 
 /* ------------------------------------------------------------------
    Recent trades / All entries
@@ -1098,8 +1103,8 @@ function TradesPanel({ trades, onDelete, onEdit }) {
   const rows = tab === "recent" ? sorted.slice(0, 6) : sorted;
 
   return (
-    <div className="bg-[#121316] rounded-2xl border border-[#232529] overflow-hidden">
-      <div className="flex items-center gap-6 px-5 pt-4 border-b border-[#1D1F23]">
+    <div className="bg-[color:var(--tl-surface)] rounded-2xl border border-[color:var(--tl-line)] overflow-hidden">
+      <div className="flex items-center gap-6 px-5 pt-4 border-b border-[color:var(--tl-hair)]">
         <Tab active={tab === "recent"} onClick={() => setTab("recent")}>
           Recent trades
         </Tab>
@@ -1111,8 +1116,8 @@ function TradesPanel({ trades, onDelete, onEdit }) {
       {rows.length ? (
         <div className={tab === "all" ? "max-h-[420px] overflow-y-auto" : ""}>
           <table className="w-full text-sm">
-            <thead className="bg-[#17181B] sticky top-0">
-              <tr className="text-[11px] uppercase tracking-wider text-[#6E7076]">
+            <thead className="bg-[color:var(--tl-subtle)] sticky top-0">
+              <tr className="text-[11px] uppercase tracking-wider text-[color:var(--tl-tx-4)]">
                 <th className="py-3 px-5 text-left font-medium">Close date</th>
                 <th className="py-3 px-4 text-left font-medium">Symbol</th>
                 <th className="py-3 px-5 text-right font-medium">Net P&L</th>
@@ -1123,21 +1128,21 @@ function TradesPanel({ trades, onDelete, onEdit }) {
               {rows.map((t) => (
                 <tr
                   key={t.id}
-                  className="border-b border-[#1D1F23] last:border-0 hover:bg-[#17181B]/60 group"
+                  className="border-b border-[color:var(--tl-hair)] last:border-0 hover:bg-[color:var(--tl-row)] group"
                 >
-                  <td className="py-3.5 px-5 text-[#8A8D94]">
+                  <td className="py-3.5 px-5 text-[color:var(--tl-tx-3)]">
                     {new Date(t.date).toLocaleDateString("en-US", {
                       month: "2-digit",
                       day: "2-digit",
                       year: "numeric",
                     })}
                   </td>
-                  <td className="py-3.5 px-4 text-[#E4E6EA]">
+                  <td className="py-3.5 px-4 text-[color:var(--tl-tx-1)]">
                     <span>{t.symbol || "—"}</span>
                     {t.note && (
                       <span
                         title={t.note}
-                        className="block text-[11px] text-[#6E7076] truncate max-w-[150px]"
+                        className="block text-[11px] text-[color:var(--tl-tx-4)] truncate max-w-[150px]"
                       >
                         {t.note}
                       </span>
@@ -1145,7 +1150,7 @@ function TradesPanel({ trades, onDelete, onEdit }) {
                   </td>
                   <td
                     className={`py-3.5 px-5 text-right font-semibold ${
-                      t.pnl >= 0 ? "text-[#4ADE80]" : "text-[#F87171]"
+                      t.pnl >= 0 ? "text-[color:var(--tl-pos)]" : "text-[color:var(--tl-neg)]"
                     }`}
                     title={
                       t.fees
@@ -1163,14 +1168,14 @@ function TradesPanel({ trades, onDelete, onEdit }) {
                       <button
                         onClick={() => onEdit(t)}
                         aria-label="Edit entry"
-                        className="text-[#4A4D53] opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 cursor-pointer hover:text-[#4ADE80] transition"
+                        className="text-[color:var(--tl-tx-5)] opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 cursor-pointer hover:text-[color:var(--tl-pos)] transition"
                       >
                         <Pencil size={14} />
                       </button>
                       <button
                         onClick={() => onDelete(t.id)}
                         aria-label="Delete entry"
-                        className="text-[#4A4D53] opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 cursor-pointer hover:text-[#F87171] transition"
+                        className="text-[color:var(--tl-tx-5)] opacity-100 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100 cursor-pointer hover:text-[color:var(--tl-neg)] transition"
                       >
                         <Trash2 size={14} />
                       </button>
@@ -1195,7 +1200,7 @@ function Tab({ active, onClick, children }) {
     <button
       onClick={onClick}
       className={`pb-3 text-[15px] font-medium border-b-2 -mb-px cursor-pointer transition-colors ${
-        active ? "text-[#4ADE80] border-[#4ADE80]" : "text-[#6E7076] border-transparent hover:text-[#C9CBD1]"
+        active ? "text-[color:var(--tl-pos)] border-[color:var(--tl-pos)]" : "text-[color:var(--tl-tx-4)] border-transparent hover:text-[color:var(--tl-tx-2)]"
       }`}
     >
       {children}
@@ -1276,8 +1281,8 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
           onClick={() => setCursor(new Date(now.getFullYear(), now.getMonth(), 1))}
           className={`h-9 px-4 rounded-lg text-sm font-medium border cursor-pointer transition-colors ${
             isThisMonth
-              ? "bg-[#4ADE80]/10 border-[#4ADE80]/30 text-[#4ADE80]"
-              : "bg-[#17181B] border-[#232529] text-[#C9CBD1] hover:border-[#2E3137]"
+              ? "bg-[color:var(--tl-pos-soft)] border-[color:var(--tl-pos-line)] text-[color:var(--tl-pos)]"
+              : "bg-[color:var(--tl-raised)] border-[color:var(--tl-line)] text-[color:var(--tl-tx-2)] hover:border-[color:var(--tl-line-strong)]"
           }`}
         >
           This month
@@ -1286,19 +1291,19 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
 
       {/* Monthly stats */}
       <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <span className="text-[11px] uppercase tracking-wider text-[#6E7076]">Monthly stats</span>
+        <span className="text-[11px] uppercase tracking-wider text-[color:var(--tl-tx-4)]">Monthly stats</span>
         <span
           className={`text-sm font-semibold px-2.5 py-1 rounded-md border ${
             !hasData
-              ? "bg-[#17181B] border-[#232529] text-[#4A4D53]"
+              ? "bg-[color:var(--tl-subtle)] border-[color:var(--tl-line)] text-[color:var(--tl-tx-5)]"
               : monthTotal >= 0
-              ? "bg-[#4ADE80]/10 border-[#4ADE80]/25 text-[#4ADE80]"
-              : "bg-[#F87171]/10 border-[#F87171]/25 text-[#F87171]"
+              ? "bg-[color:var(--tl-pos-soft)] border-[color:var(--tl-pos-line)] text-[color:var(--tl-pos)]"
+              : "bg-[color:var(--tl-neg-soft)] border-[color:var(--tl-neg-line)] text-[color:var(--tl-neg)]"
           }`}
         >
           {hasData ? `${monthTotal >= 0 ? "" : "-"}${currency(Math.abs(monthTotal))}` : "--"}
         </span>
-        <span className="text-sm font-medium px-2.5 py-1 rounded-md bg-[#17181B] border border-[#232529] text-[#C9CBD1]">
+        <span className="text-sm font-medium px-2.5 py-1 rounded-md bg-[color:var(--tl-subtle)] border border-[color:var(--tl-line)] text-[color:var(--tl-tx-2)]">
           {tradingDays} day{tradingDays === 1 ? "" : "s"}
         </span>
       </div>
@@ -1309,7 +1314,7 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
           {WEEKDAYS.map((w) => (
             <div
               key={w}
-              className="rounded-lg border border-[#1D1F23] bg-[#0F1012] py-2 text-center text-xs font-medium text-[#6E7076]"
+              className="rounded-lg border border-[color:var(--tl-hair)] bg-[color:var(--tl-well)] py-2 text-center text-xs font-medium text-[color:var(--tl-tx-4)]"
             >
               {w}
             </div>
@@ -1341,12 +1346,12 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
                   const winRate = traded ? (info.wins / info.count) * 100 : null;
 
                   const tone = !traded
-                    ? "bg-[#0F1012] border-[#1A1C1F]"
+                    ? "bg-[color:var(--tl-well)] border-[color:var(--tl-well-line)]"
                     : flat
-                    ? "bg-[#60A5FA]/10 border-[#60A5FA]/25"
+                    ? "bg-[color:var(--tl-flat-soft)] border-[color:var(--tl-flat-line)]"
                     : win
-                    ? "bg-[#4ADE80]/10 border-[#4ADE80]/25"
-                    : "bg-[#F87171]/10 border-[#F87171]/25";
+                    ? "bg-[color:var(--tl-pos-soft)] border-[color:var(--tl-pos-line)]"
+                    : "bg-[color:var(--tl-neg-soft)] border-[color:var(--tl-neg-line)]";
 
                   return (
                     <div
@@ -1363,12 +1368,12 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
                       // hover:z-20 lifts the whole cell so its hover card paints
                       // above the day cells that come after it in the DOM.
                       className={`relative hover:z-20 min-h-[74px] sm:min-h-[104px] rounded-lg border p-1.5 sm:p-2 flex flex-col ${tone} ${
-                        traded || news.length ? "cursor-pointer hover:brightness-125 transition" : ""
-                      } ${key === todayKey ? "ring-1 ring-[#4ADE80]/60" : ""}`}
+                        traded || news.length ? "cursor-pointer hover:brightness-[var(--tl-cell-hover)] transition" : ""
+                      } ${key === todayKey ? "ring-1 ring-[color:var(--tl-pos-today)]" : ""}`}
                     >
                       <span
                         className={`text-[11px] sm:text-xs self-end ${
-                          traded ? "text-[#C9CBD1]" : "text-[#4A4D53]"
+                          traded ? "text-[color:var(--tl-tx-2)]" : "text-[color:var(--tl-tx-5)]"
                         }`}
                       >
                         {d}
@@ -1378,7 +1383,7 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
                         <div className="mt-auto text-right leading-tight min-w-0">
                           <p
                             className={`text-[10px] sm:text-[15px] font-bold ${
-                              flat ? "text-[#C9CBD1]" : win ? "text-[#4ADE80]" : "text-[#F87171]"
+                              flat ? "text-[color:var(--tl-tx-2)]" : win ? "text-[color:var(--tl-pos)]" : "text-[color:var(--tl-neg)]"
                             }`}
                             title={`${info.pnl < 0 ? "-" : ""}${currency(Math.abs(info.pnl))}`}
                           >
@@ -1388,11 +1393,11 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
                               {oneDp(Math.abs(info.pnl))}
                             </span>
                           </p>
-                          <p className="text-[9px] sm:text-[11px] text-[#8A8D94] truncate">
+                          <p className="text-[9px] sm:text-[11px] text-[color:var(--tl-tx-3)] truncate">
                             {info.count}
                             <span className="hidden sm:inline"> trade{info.count > 1 ? "s" : ""}</span>
                           </p>
-                          <p className="text-[9px] sm:text-[11px] text-[#6E7076] truncate hidden sm:block">
+                          <p className="text-[9px] sm:text-[11px] text-[color:var(--tl-tx-4)] truncate hidden sm:block">
                             {winRate.toFixed(2)}%
                           </p>
                         </div>
@@ -1401,7 +1406,7 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
                       {traded && info.notes > 0 && (
                         <span
                           title={`${info.notes} note${info.notes > 1 ? "s" : ""}`}
-                          className="absolute bottom-1.5 left-1.5 sm:left-2 w-[5px] h-[5px] sm:w-1.5 sm:h-1.5 rounded-full bg-[#4ADE80]"
+                          className="absolute bottom-1.5 left-1.5 sm:left-2 w-[5px] h-[5px] sm:w-1.5 sm:h-1.5 rounded-full bg-[color:var(--tl-accent)]"
                         />
                       )}
 
@@ -1413,15 +1418,15 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
                           {/* Mobile: plain dot. */}
                           <div
                             className="sm:hidden w-[5px] h-[5px] rounded-full"
-                            style={{ background: redFolder.length ? RED : "#E0A32E" }}
+                            style={{ background: redFolder.length ? RED : AMBER }}
                           />
 
                           {/* Desktop: pill with the count. */}
                           <div
                             className="hidden sm:flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-semibold leading-none"
                             style={{
-                              background: `${redFolder.length ? RED : "#E0A32E"}26`,
-                              color: redFolder.length ? RED : "#E0A32E",
+                              background: redFolder.length ? "var(--tl-neg-soft)" : "var(--tl-warn-soft)",
+                              color: redFolder.length ? "var(--tl-neg)" : "var(--tl-warn)",
                             }}
                           >
                             <span className="w-1.5 h-1.5 rounded-full bg-current" />
@@ -1431,13 +1436,13 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
                           {/* Hover card. Desktop only — on mobile, tapping the
                               day opens the full popup instead. */}
                           <div
-                            className={`hidden sm:block pointer-events-none opacity-0 group-hover/news:opacity-100 transition-opacity absolute left-0 z-30 w-60 rounded-xl border border-[#2A2C31] bg-[#17181B] p-3 shadow-xl ${
+                            className={`hidden sm:block pointer-events-none opacity-0 group-hover/news:opacity-100 transition-opacity absolute left-0 z-30 w-60 rounded-xl border border-[color:var(--tl-pop-line)] bg-[color:var(--tl-pop)] p-3 shadow-xl ${
                               wi >= weeks.length - 2
                                 ? "bottom-full mb-1.5"
                                 : "top-full mt-1.5"
                             }`}
                           >
-                            <p className="text-[11px] font-semibold text-white mb-2">
+                            <p className="text-[11px] font-semibold text-[color:var(--tl-tx)] mb-2">
                               {new Date(year, month, d).toLocaleDateString("en-US", {
                                 weekday: "long",
                                 month: "short",
@@ -1448,15 +1453,15 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
                               <div key={ni} className="flex items-start gap-2 mb-2 last:mb-0">
                                 <span
                                   className="mt-1 w-1.5 h-1.5 rounded-full shrink-0"
-                                  style={{ background: n.impact === "High" ? RED : "#E0A32E" }}
+                                  style={{ background: n.impact === "High" ? RED : AMBER }}
                                 />
                                 <div className="min-w-0">
-                                  <p className="text-[11px] text-[#E4E6EA] leading-snug">
+                                  <p className="text-[11px] text-[color:var(--tl-tx-1)] leading-snug">
                                     {n.title}
                                   </p>
-                                  <p className="text-[10px] text-[#6E7076] mt-0.5">
+                                  <p className="text-[10px] text-[color:var(--tl-tx-4)] mt-0.5">
                                     {n.currency}
-                                    <span className="mx-1 text-[#33363B]">·</span>
+                                    <span className="mx-1 text-[color:var(--tl-tx-6)]">·</span>
                                     {n.time.toLocaleTimeString("en-US", {
                                       hour: "numeric",
                                       minute: "2-digit",
@@ -1465,18 +1470,18 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
                                   {(n.forecast || n.previous) && (
                                     <p className="text-[10px] mt-0.5">
                                       {n.forecast && (
-                                        <span className="text-[#8A8D94]">
+                                        <span className="text-[color:var(--tl-tx-3)]">
                                           Forecast{" "}
-                                          <span className="text-[#C9CBD1]">{n.forecast}</span>
+                                          <span className="text-[color:var(--tl-tx-2)]">{n.forecast}</span>
                                         </span>
                                       )}
                                       {n.forecast && n.previous && (
-                                        <span className="mx-1.5 text-[#33363B]">·</span>
+                                        <span className="mx-1.5 text-[color:var(--tl-tx-6)]">·</span>
                                       )}
                                       {n.previous && (
-                                        <span className="text-[#8A8D94]">
+                                        <span className="text-[color:var(--tl-tx-3)]">
                                           Previous{" "}
-                                          <span className="text-[#C9CBD1]">{n.previous}</span>
+                                          <span className="text-[color:var(--tl-tx-2)]">{n.previous}</span>
                                         </span>
                                       )}
                                     </p>
@@ -1493,22 +1498,22 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
               </div>
 
               {/* Weekly summary card */}
-              <div className="hidden md:flex w-[112px] shrink-0 rounded-xl border border-[#1D1F23] bg-[#0F1012] flex-col items-center justify-center text-center px-2 py-3">
-                <p className="text-[11px] text-[#6E7076]">Week {wi + 1}</p>
+              <div className="hidden md:flex w-[112px] shrink-0 rounded-xl border border-[color:var(--tl-hair)] bg-[color:var(--tl-well)] flex-col items-center justify-center text-center px-2 py-3">
+                <p className="text-[11px] text-[color:var(--tl-tx-4)]">Week {wi + 1}</p>
                 <p
                   className={`text-[15px] font-bold mt-0.5 whitespace-nowrap ${
                     weekDaysTraded === 0
-                      ? "text-[#4A4D53]"
+                      ? "text-[color:var(--tl-tx-5)]"
                       : weekPnl > 0
-                      ? "text-[#4ADE80]"
+                      ? "text-[color:var(--tl-pos)]"
                       : weekPnl < 0
-                      ? "text-[#F87171]"
-                      : "text-[#C9CBD1]"
+                      ? "text-[color:var(--tl-neg)]"
+                      : "text-[color:var(--tl-tx-2)]"
                   }`}
                 >
                   {weekDaysTraded === 0 ? "$0" : `${weekPnl < 0 ? "-" : ""}${oneDp(Math.abs(weekPnl))}`}
                 </p>
-                <span className="mt-1.5 text-[11px] text-[#6E7076] bg-[#17181B] border border-[#232529] rounded-full px-2 py-0.5">
+                <span className="mt-1.5 text-[11px] text-[color:var(--tl-tx-4)] bg-[color:var(--tl-subtle)] border border-[color:var(--tl-line)] rounded-full px-2 py-0.5">
                   {weekDaysTraded} day{weekDaysTraded === 1 ? "" : "s"}
                 </span>
               </div>
@@ -1524,18 +1529,18 @@ function MonthCalendar({ calendar, trades = [], hasData, focusMonth, newsByDay =
           return (
             <div
               key={wi}
-              className="rounded-xl border border-[#1D1F23] bg-[#0F1012] px-3 py-2 flex items-center justify-between"
+              className="rounded-xl border border-[color:var(--tl-hair)] bg-[color:var(--tl-well)] px-3 py-2 flex items-center justify-between"
             >
-              <span className="text-[11px] text-[#6E7076]">Week {wi + 1}</span>
+              <span className="text-[11px] text-[color:var(--tl-tx-4)]">Week {wi + 1}</span>
               <span
                 className={`text-sm font-bold whitespace-nowrap ${
                   weekDaysTraded === 0
-                    ? "text-[#4A4D53]"
+                    ? "text-[color:var(--tl-tx-5)]"
                     : weekPnl > 0
-                    ? "text-[#4ADE80]"
+                    ? "text-[color:var(--tl-pos)]"
                     : weekPnl < 0
-                    ? "text-[#F87171]"
-                    : "text-[#C9CBD1]"
+                    ? "text-[color:var(--tl-neg)]"
+                    : "text-[color:var(--tl-tx-2)]"
                 }`}
               >
                 {weekDaysTraded === 0 ? "$0" : tight(weekPnl)}
@@ -1616,16 +1621,16 @@ function DateRangeSheet({ range, from, to, onApply, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-[color:var(--tl-scrim)] backdrop-blur-sm flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm bg-[#121316] border border-[#232529] rounded-2xl max-h-[85vh] overflow-y-auto"
+        className="w-full max-w-sm bg-[color:var(--tl-surface)] border border-[color:var(--tl-line)] rounded-2xl max-h-[85vh] overflow-y-auto"
       >
-        <div className="flex items-center justify-between px-4 py-3.5 border-b border-[#1D1F23]">
+        <div className="flex items-center justify-between px-4 py-3.5 border-b border-[color:var(--tl-hair)]">
           <h3 className="text-base font-semibold">Date range</h3>
-          <button onClick={onClose} aria-label="Close" className="text-[#6E7076] cursor-pointer hover:text-white">
+          <button onClick={onClose} aria-label="Close" className="text-[color:var(--tl-tx-4)] cursor-pointer hover:text-[color:var(--tl-tx)]">
             <X size={18} />
           </button>
         </div>
@@ -1638,8 +1643,8 @@ function DateRangeSheet({ range, from, to, onApply, onClose }) {
               onClick={() => onApply(p.id, "", "")}
               className={`h-8 px-3 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
                 range === p.id
-                  ? "bg-[#4ADE80]/10 border-[#4ADE80]/25 text-[#4ADE80]"
-                  : "bg-[#17181B] border-[#232529] text-[#C9CBD1]"
+                  ? "bg-[color:var(--tl-pos-soft)] border-[color:var(--tl-pos-line)] text-[color:var(--tl-pos)]"
+                  : "bg-[color:var(--tl-raised)] border-[color:var(--tl-line)] text-[color:var(--tl-tx-2)]"
               }`}
             >
               {p.label}
@@ -1649,11 +1654,11 @@ function DateRangeSheet({ range, from, to, onApply, onClose }) {
 
         {/* Selected span */}
         <div className="flex items-center justify-center gap-3 px-4 py-3.5">
-          <span className={`text-sm font-medium ${start ? "text-white" : "text-[#4A4D53]"}`}>
+          <span className={`text-sm font-medium ${start ? "text-[color:var(--tl-tx)]" : "text-[color:var(--tl-tx-5)]"}`}>
             {pretty(start)}
           </span>
-          <span className="text-[#4A4D53]">→</span>
-          <span className={`text-sm font-medium ${end ? "text-white" : "text-[#4A4D53]"}`}>
+          <span className="text-[color:var(--tl-tx-5)]">→</span>
+          <span className={`text-sm font-medium ${end ? "text-[color:var(--tl-tx)]" : "text-[color:var(--tl-tx-5)]"}`}>
             {pretty(end)}
           </span>
         </div>
@@ -1675,7 +1680,7 @@ function DateRangeSheet({ range, from, to, onApply, onClose }) {
         <div className="px-3 pb-3">
           <div className="grid grid-cols-7 mb-1">
             {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((w) => (
-              <div key={w} className="text-center text-[11px] text-[#6E7076] py-1.5">
+              <div key={w} className="text-center text-[11px] text-[color:var(--tl-tx-4)] py-1.5">
                 {w}
               </div>
             ))}
@@ -1694,20 +1699,25 @@ function DateRangeSheet({ range, from, to, onApply, onClose }) {
                 <div
                   key={i}
                   className={`h-10 flex items-center justify-center ${
-                    inRange ? "bg-[#4ADE80]/10" : ""
-                  } ${isStart && end ? "bg-gradient-to-r from-transparent to-[#4ADE80]/10" : ""} ${
-                    isEnd ? "bg-gradient-to-l from-transparent to-[#4ADE80]/10" : ""
+                    inRange ? "bg-[color:var(--tl-pos-soft)]" : ""
                   }`}
+                  style={
+                    isEnd
+                      ? { background: "linear-gradient(to left, transparent, var(--tl-pos-soft))" }
+                      : isStart && end
+                      ? { background: "linear-gradient(to right, transparent, var(--tl-pos-soft))" }
+                      : undefined
+                  }
                 >
                   <button
                     type="button"
                     onClick={() => pick(key)}
                     className={`w-9 h-9 rounded-full text-sm cursor-pointer transition-colors ${
                       isStart || isEnd
-                        ? "bg-[#4ADE80] text-[#08130C] font-semibold"
+                        ? "bg-[color:var(--tl-accent)] text-[color:var(--tl-on-accent)] font-semibold"
                         : inRange
-                        ? "text-[#C9CBD1]"
-                        : "text-[#C9CBD1] hover:bg-[#232529]"
+                        ? "text-[color:var(--tl-tx-2)]"
+                        : "text-[color:var(--tl-tx-2)] hover:bg-[color:var(--tl-track)]"
                     }`}
                   >
                     {d}
@@ -1719,20 +1729,20 @@ function DateRangeSheet({ range, from, to, onApply, onClose }) {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2 p-4 border-t border-[#1D1F23] sticky bottom-0 bg-[#121316]">
+        <div className="flex gap-2 p-4 border-t border-[color:var(--tl-hair)] sticky bottom-0 bg-[color:var(--tl-surface)]">
           <button
             onClick={() => {
               setStart("");
               setEnd("");
             }}
-            className="flex-1 h-11 rounded-xl border border-[#232529] bg-[#17181B] text-sm font-medium text-[#C9CBD1] cursor-pointer"
+            className="flex-1 h-11 rounded-xl border border-[color:var(--tl-line)] bg-[color:var(--tl-raised)] text-sm font-medium text-[color:var(--tl-tx-2)] cursor-pointer"
           >
             Clear
           </button>
           <button
             disabled={!start || !end}
             onClick={() => onApply("custom", start, end)}
-            className="flex-1 h-11 rounded-xl bg-[#4ADE80] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed text-[#08130C] text-sm font-semibold"
+            className="flex-1 h-11 rounded-xl bg-[color:var(--tl-accent)] cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed text-[color:var(--tl-on-accent)] text-sm font-semibold"
           >
             Apply
           </button>
@@ -1764,19 +1774,19 @@ function DayDetailModal({ dateKey, trades, news = [], onClose }) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+      className="fixed inset-0 bg-[color:var(--tl-scrim)] backdrop-blur-sm flex items-center justify-center p-4 z-50"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="bg-[#121316] border border-[#232529] rounded-2xl w-full max-w-xs sm:max-w-sm max-h-[80vh] overflow-y-auto"
+        className="bg-[color:var(--tl-surface)] border border-[color:var(--tl-line)] rounded-2xl w-full max-w-xs sm:max-w-sm max-h-[80vh] overflow-y-auto"
       >
         <div className="flex items-start justify-between p-4 pb-3">
           <div>
             <h3 className="text-base font-semibold">
               {dateObj.toLocaleDateString("en-US", { weekday: "long" })}
             </h3>
-            <p className="text-xs text-[#6E7076] mt-0.5">
+            <p className="text-xs text-[color:var(--tl-tx-4)] mt-0.5">
               {dateObj.toLocaleDateString("en-US", {
                 month: "long",
                 day: "numeric",
@@ -1787,7 +1797,7 @@ function DayDetailModal({ dateKey, trades, news = [], onClose }) {
           <button
             onClick={onClose}
             aria-label="Close"
-            className="text-[#6E7076] cursor-pointer hover:text-white p-1 -mr-1"
+            className="text-[color:var(--tl-tx-4)] cursor-pointer hover:text-[color:var(--tl-tx)] p-1 -mr-1"
           >
             <X size={16} />
           </button>
@@ -1795,15 +1805,15 @@ function DayDetailModal({ dateKey, trades, news = [], onClose }) {
 
         {/* Day summary */}
         <div
-          className={`mx-4 rounded-lg border border-[#232529] flex divide-x divide-[#232529] ${
+          className={`mx-4 rounded-lg border border-[color:var(--tl-line)] flex divide-x divide-[color:var(--tl-line)] ${
             trades.length ? "" : "hidden"
           }`}
         >
           <div className="flex-1 py-3 text-center">
-            <p className="text-[9px] uppercase tracking-wider text-[#6E7076]">Net P&L</p>
+            <p className="text-[9px] uppercase tracking-wider text-[color:var(--tl-tx-4)]">Net P&L</p>
             <p
               className={`text-lg font-bold mt-0.5 ${
-                net > 0 ? "text-[#4ADE80]" : net < 0 ? "text-[#F87171]" : "text-[#C9CBD1]"
+                net > 0 ? "text-[color:var(--tl-pos)]" : net < 0 ? "text-[color:var(--tl-neg)]" : "text-[color:var(--tl-tx-2)]"
               }`}
             >
               {net >= 0 ? "+" : "-"}
@@ -1811,14 +1821,14 @@ function DayDetailModal({ dateKey, trades, news = [], onClose }) {
             </p>
           </div>
           <div className="flex-1 py-3 text-center">
-            <p className="text-[9px] uppercase tracking-wider text-[#6E7076]">Win rate</p>
+            <p className="text-[9px] uppercase tracking-wider text-[color:var(--tl-tx-4)]">Win rate</p>
             <p className="text-lg font-bold mt-0.5">{winRate.toFixed(1)}%</p>
           </div>
         </div>
 
         {fees !== 0 && (
-          <p className="px-4 mt-2 text-[10px] text-[#6E7076] text-center">
-            Includes <span className="text-[#F87171]">{currency(fees)}</span> in commission and swap
+          <p className="px-4 mt-2 text-[10px] text-[color:var(--tl-tx-4)] text-center">
+            Includes <span className="text-[color:var(--tl-neg)]">{currency(fees)}</span> in commission and swap
           </p>
         )}
 
@@ -1830,18 +1840,18 @@ function DayDetailModal({ dateKey, trades, news = [], onClose }) {
 
           <table className="w-full">
             <thead>
-              <tr className="text-[9px] uppercase tracking-wider text-[#6E7076] border-b border-[#1D1F23]">
+              <tr className="text-[9px] uppercase tracking-wider text-[color:var(--tl-tx-4)] border-b border-[color:var(--tl-hair)]">
                 <th className="text-left font-medium pb-1.5">Symbol</th>
                 <th className="text-right font-medium pb-1.5">Net P&L</th>
               </tr>
             </thead>
             <tbody>
               {trades.map((t) => (
-                <tr key={t.id} className="border-b border-[#1D1F23] last:border-0 align-top">
+                <tr key={t.id} className="border-b border-[color:var(--tl-hair)] last:border-0 align-top">
                   <td className="py-2.5 pr-3">
-                    <span className="text-[13px] font-medium text-[#E4E6EA]">{t.symbol || "—"}</span>
+                    <span className="text-[13px] font-medium text-[color:var(--tl-tx-1)]">{t.symbol || "—"}</span>
                     {t.note && (
-                      <span className="block text-[10px] text-[#6E7076] mt-0.5 leading-snug">
+                      <span className="block text-[10px] text-[color:var(--tl-tx-4)] mt-0.5 leading-snug">
                         {t.note}
                       </span>
                     )}
@@ -1849,16 +1859,16 @@ function DayDetailModal({ dateKey, trades, news = [], onClose }) {
                   <td
                     className={`py-2.5 text-right text-[13px] font-semibold whitespace-nowrap ${
                       t.pnl > 0
-                        ? "text-[#4ADE80]"
+                        ? "text-[color:var(--tl-pos)]"
                         : t.pnl < 0
-                        ? "text-[#F87171]"
-                        : "text-[#C9CBD1]"
+                        ? "text-[color:var(--tl-neg)]"
+                        : "text-[color:var(--tl-tx-2)]"
                     }`}
                   >
                     {t.pnl >= 0 ? "+" : "-"}
                     {currency(Math.abs(t.pnl))}
                     {t.fees !== 0 && (
-                      <span className="block text-[9px] text-[#4A4D53] font-normal mt-0.5">
+                      <span className="block text-[9px] text-[color:var(--tl-tx-5)] font-normal mt-0.5">
                         {currency(t.gross)} gross
                       </span>
                     )}
@@ -1880,17 +1890,17 @@ function DayDetailModal({ dateKey, trades, news = [], onClose }) {
                     title={`${n.impact} impact`}
                     className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${
                       n.impact === "High"
-                        ? "bg-[#F87171]"
+                        ? "bg-[color:var(--tl-neg-fill)]"
                         : n.impact === "Medium"
-                        ? "bg-[#E0A32E]"
-                        : "bg-[#4A4D53]"
+                        ? "bg-[color:var(--tl-warn-fill)]"
+                        : "bg-[color:var(--tl-tx-5)]"
                     }`}
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="text-[12px] text-[#E4E6EA] leading-snug">{n.title}</p>
-                    <p className="text-[10px] text-[#6E7076] mt-0.5">
+                    <p className="text-[12px] text-[color:var(--tl-tx-1)] leading-snug">{n.title}</p>
+                    <p className="text-[10px] text-[color:var(--tl-tx-4)] mt-0.5">
                       {n.currency}
-                      <span className="mx-1.5 text-[#33363B]">·</span>
+                      <span className="mx-1.5 text-[color:var(--tl-tx-6)]">·</span>
                       {n.time.toLocaleTimeString("en-US", {
                         hour: "numeric",
                         minute: "2-digit",
@@ -1899,13 +1909,13 @@ function DayDetailModal({ dateKey, trades, news = [], onClose }) {
                     {(n.forecast || n.previous) && (
                       <div className="flex gap-3 mt-1">
                         {n.forecast && (
-                          <span className="text-[10px] text-[#6E7076]">
-                            Forecast <span className="text-[#C9CBD1]">{n.forecast}</span>
+                          <span className="text-[10px] text-[color:var(--tl-tx-4)]">
+                            Forecast <span className="text-[color:var(--tl-tx-2)]">{n.forecast}</span>
                           </span>
                         )}
                         {n.previous && (
-                          <span className="text-[10px] text-[#6E7076]">
-                            Previous <span className="text-[#C9CBD1]">{n.previous}</span>
+                          <span className="text-[10px] text-[color:var(--tl-tx-4)]">
+                            Previous <span className="text-[color:var(--tl-tx-2)]">{n.previous}</span>
                           </span>
                         )}
                       </div>
@@ -1926,7 +1936,7 @@ function IconArrow({ onClick, children, label }) {
     <button
       onClick={onClick}
       aria-label={label}
-      className="w-8 h-8 rounded-lg flex items-center justify-center text-[#6E7076] cursor-pointer hover:bg-[#17181B] hover:text-white transition-colors"
+      className="w-8 h-8 rounded-lg flex items-center justify-center text-[color:var(--tl-tx-4)] cursor-pointer hover:bg-[color:var(--tl-subtle)] hover:text-[color:var(--tl-tx)] transition-colors"
     >
       {children}
     </button>
@@ -1951,8 +1961,8 @@ function RailButton({ icon: Icon, active }) {
     <button
       className={`w-10 h-10 rounded-xl flex items-center justify-center cursor-default transition-colors ${
         active
-          ? "bg-[#4ADE80]/10 border border-[#4ADE80]/25 text-[#4ADE80]"
-          : "text-[#5A5D63] hover:bg-[#17181B] hover:text-[#C9CBD1]"
+          ? "bg-[color:var(--tl-pos-soft)] border border-[color:var(--tl-pos-line)] text-[color:var(--tl-pos)]"
+          : "text-[color:var(--tl-rail)] hover:bg-[color:var(--tl-subtle)] hover:text-[color:var(--tl-tx-2)]"
       }`}
     >
       <Icon size={17} />
@@ -1966,7 +1976,7 @@ function Select({ value, onChange, children, label }) {
       aria-label={label}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="h-9 pl-3.5 pr-8 rounded-lg bg-[#17181B] border border-[#232529] text-base sm:text-xs font-medium text-[#C9CBD1] cursor-pointer hover:border-[#2E3137] focus:outline-none focus:ring-2 focus:ring-[#4ADE80]/25 appearance-none bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%2210%22 viewBox=%220 0 10 10%22><path d=%22M2 4l3 3 3-3%22 fill=%22none%22 stroke=%22%236E7076%22 stroke-width=%221.4%22/></svg>')] bg-no-repeat bg-[right_0.6rem_center]"
+      className="h-9 pl-3.5 pr-8 rounded-lg bg-[color:var(--tl-raised)] border border-[color:var(--tl-line)] text-base sm:text-xs font-medium text-[color:var(--tl-tx-2)] cursor-pointer hover:border-[color:var(--tl-line-strong)] focus:outline-none focus:ring-2 focus:ring-[color:var(--tl-pos-ring)] appearance-none bg-[url('data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2210%22 height=%2210%22 viewBox=%220 0 10 10%22><path d=%22M2 4l3 3 3-3%22 fill=%22none%22 stroke=%22%236E7076%22 stroke-width=%221.4%22/></svg>')] bg-no-repeat bg-[right_0.6rem_center]"
     >
       {children}
     </select>
@@ -1975,7 +1985,7 @@ function Select({ value, onChange, children, label }) {
 
 function Card({ title, children, className = "", noPad }) {
   return (
-    <div className={`bg-[#121316] rounded-2xl border border-[#232529] ${className}`}>
+    <div className={`bg-[color:var(--tl-surface)] rounded-2xl border border-[color:var(--tl-line)] ${className}`}>
       {title && (
         <div className="px-5 pt-5 pb-1">
           <h2 className="text-[15px] font-semibold">{title}</h2>
@@ -1988,7 +1998,7 @@ function Card({ title, children, className = "", noPad }) {
 
 function Label({ children }) {
   return (
-    <p className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[#6E7076] font-medium">
+    <p className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[color:var(--tl-tx-4)] font-medium">
       {children}
     </p>
   );
@@ -1996,7 +2006,7 @@ function Label({ children }) {
 
 function LegendDot({ color, children }) {
   return (
-    <span className="flex items-center gap-1.5 text-xs text-[#8A8D94]">
+    <span className="flex items-center gap-1.5 text-xs text-[color:var(--tl-tx-3)]">
       <span className="w-2 h-2 rounded-full" style={{ background: color }} />
       {children}
     </span>
@@ -2006,11 +2016,11 @@ function LegendDot({ color, children }) {
 function EmptyState({ text, hint }) {
   return (
     <div className="flex flex-col items-center justify-center py-14 text-center">
-      <div className="w-14 h-14 rounded-full bg-[#4ADE80]/8 border border-[#4ADE80]/20 flex items-center justify-center mb-3">
-        <Plus size={20} className="text-[#4ADE80]" />
+      <div className="w-14 h-14 rounded-full bg-[color:var(--tl-pos-soft)] border border-[color:var(--tl-pos-line)] flex items-center justify-center mb-3">
+        <Plus size={20} className="text-[color:var(--tl-pos)]" />
       </div>
-      <p className="text-sm text-[#C9CBD1]">{text}</p>
-      <p className="text-xs text-[#6E7076] mt-0.5 max-w-[220px]">{hint}</p>
+      <p className="text-sm text-[color:var(--tl-tx-2)]">{text}</p>
+      <p className="text-xs text-[color:var(--tl-tx-4)] mt-0.5 max-w-[220px]">{hint}</p>
     </div>
   );
 }
@@ -2020,9 +2030,9 @@ function Gauge({ counts, show, noun = "trades" }) {
   const len = Math.PI * r;
   const total = counts.wins + counts.flats + counts.losses;
   const segs = [
-    { v: counts.wins, c: GREEN, label: `winning ${noun}` },
-    { v: counts.flats, c: FLAT, label: `breakeven ${noun}` },
-    { v: counts.losses, c: RED, label: `losing ${noun}` },
+    { v: counts.wins, c: GREEN, t: "pos", label: `winning ${noun}` },
+    { v: counts.flats, c: FLAT, t: "flat", label: `breakeven ${noun}` },
+    { v: counts.losses, c: RED, t: "neg", label: `losing ${noun}` },
   ];
 
   let offset = 0;
@@ -2037,7 +2047,7 @@ function Gauge({ counts, show, noun = "trades" }) {
         <path
           d="M 17 42 A 26 26 0 0 1 69 42"
           fill="none"
-          stroke="#232529"
+          stroke="var(--tl-track)"
           strokeWidth="6"
           strokeLinecap="round"
         />
@@ -2070,9 +2080,9 @@ function Gauge({ counts, show, noun = "trades" }) {
             title={s.label}
             className="text-[9px] sm:text-[11px] leading-none px-1 sm:px-2 py-[2px] sm:py-[3px] rounded sm:rounded-md border"
             style={{
-              color: show ? s.c : "#4A4D53",
-              background: show ? `${s.c}14` : "#17181B",
-              borderColor: show ? `${s.c}40` : "#232529",
+              color: show ? `var(--tl-${s.t})` : "var(--tl-tx-5)",
+              background: show ? `var(--tl-${s.t}-soft)` : "var(--tl-subtle)",
+              borderColor: show ? `var(--tl-${s.t}-line)` : "var(--tl-line)",
             }}
           >
             {show ? s.v : "-"}
@@ -2093,7 +2103,7 @@ function Donut({ win, loss, show }) {
       viewBox="0 0 60 60"
       className="shrink-0 -rotate-90 w-[56px] h-[56px] sm:w-[65px] sm:h-[65px]"
     >
-      <circle cx="30" cy="30" r={r} fill="none" stroke="#232529" strokeWidth="6" />
+      <circle cx="30" cy="30" r={r} fill="none" stroke="var(--tl-track)" strokeWidth="6" />
       {show && total > 0 && (
         <>
           <circle cx="30" cy="30" r={r} fill="none" stroke={RED} strokeWidth="6" />
@@ -2117,7 +2127,7 @@ function SplitBar({ avgWin, avgLoss, show }) {
   const winPct = show && total > 0 ? (avgWin / total) * 100 : 50;
   return (
     <div className="flex-1 min-w-0">
-      <div className="h-2 rounded-full bg-[#232529] overflow-hidden flex">
+      <div className="h-2 rounded-full bg-[color:var(--tl-track)] overflow-hidden flex">
         {show && (
           <>
             <div className="h-full" style={{ width: `${winPct}%`, background: GREEN }} />
@@ -2126,8 +2136,8 @@ function SplitBar({ avgWin, avgLoss, show }) {
         )}
       </div>
       <div className="flex items-center justify-between mt-1.5 text-xs font-medium">
-        <span className="text-[#4ADE80]">{show ? currency(avgWin) : "--"}</span>
-        <span className="text-[#F87171]">{show ? `-${currency(avgLoss)}` : "--"}</span>
+        <span className="text-[color:var(--tl-pos)]">{show ? currency(avgWin) : "--"}</span>
+        <span className="text-[color:var(--tl-neg)]">{show ? `-${currency(avgLoss)}` : "--"}</span>
       </div>
     </div>
   );
@@ -2141,8 +2151,8 @@ function ScoreRadar({ parts, score, show }) {
       <div className="h-[186px] -mx-2">
         <ResponsiveContainer width="100%" height="100%">
           <RadarChart data={data} outerRadius="72%">
-            <PolarGrid stroke="#232529" gridType="polygon" />
-            <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: "#6E7076" }} tickLine={false} />
+            <PolarGrid stroke="var(--tl-track)" gridType="polygon" />
+            <PolarAngleAxis dataKey="subject" tick={{ fontSize: 10, fill: "var(--tl-tx-4)" }} tickLine={false} />
             <Radar
               dataKey="value"
               stroke={GREEN}
@@ -2156,24 +2166,24 @@ function ScoreRadar({ parts, score, show }) {
         </ResponsiveContainer>
       </div>
 
-      <div className="mt-2 pt-3 border-t border-[#1D1F23]">
+      <div className="mt-2 pt-3 border-t border-[color:var(--tl-hair)]">
         <div className="flex items-baseline justify-between">
           <Label>Your score</Label>
           <span className="text-lg font-semibold">{show ? score.toFixed(2) : "--"}</span>
         </div>
-        <div className="mt-2 relative h-2 rounded-full bg-[#232529]">
+        <div className="mt-2 relative h-2 rounded-full bg-[color:var(--tl-track)]">
           <div
-            className="absolute left-0 top-0 h-full rounded-full bg-[#4ADE80]"
+            className="absolute left-0 top-0 h-full rounded-full bg-[color:var(--tl-accent)]"
             style={{ width: `${show ? clamp(score) : 0}%` }}
           />
           {show && (
             <span
-              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-[#0A0A0B] border-2 border-[#4ADE80]"
+              className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-[color:var(--tl-bg)] border-2 border-[color:var(--tl-accent)]"
               style={{ left: `${clamp(score)}%` }}
             />
           )}
         </div>
-        <div className="flex justify-between mt-1 text-[10px] text-[#4A4D53]">
+        <div className="flex justify-between mt-1 text-[10px] text-[color:var(--tl-tx-5)]">
           {[0, 20, 40, 60, 80, 100].map((n) => (
             <span key={n}>{n}</span>
           ))}
@@ -2215,7 +2225,7 @@ function SymbolInput({ value, onChange, options }) {
         autoCapitalize="characters"
         autoCorrect="off"
         spellCheck={false}
-        className="w-full bg-[#0D0E10] border border-[#232529] rounded-lg pl-3 pr-9 py-2 text-base sm:text-sm text-white placeholder-[#4A4D53] focus:outline-none focus:border-[#4ADE80]/50 focus:ring-2 focus:ring-[#4ADE80]/15"
+        className="w-full bg-[color:var(--tl-field)] border border-[color:var(--tl-line)] rounded-lg pl-3 pr-9 py-2 text-base sm:text-sm text-[color:var(--tl-tx)] placeholder:text-[color:var(--tl-tx-5)] focus:outline-none focus:border-[color:var(--tl-pos-focus)] focus:ring-2 focus:ring-[color:var(--tl-pos-ring)]"
       />
 
       <button
@@ -2226,13 +2236,13 @@ function SymbolInput({ value, onChange, options }) {
           e.preventDefault();
           setOpen((v) => !v);
         }}
-        className="absolute right-0 top-0 h-full px-3 flex items-center text-[#6E7076] cursor-pointer hover:text-[#C9CBD1]"
+        className="absolute right-0 top-0 h-full px-3 flex items-center text-[color:var(--tl-tx-4)] cursor-pointer hover:text-[color:var(--tl-tx-2)]"
       >
         <ChevronDown size={15} />
       </button>
 
       {open && matches.length > 0 && (
-        <ul className="absolute z-10 left-0 right-0 mt-1 max-h-44 overflow-y-auto rounded-lg border border-[#2A2C31] bg-[#17181B] shadow-xl py-1">
+        <ul className="absolute z-10 left-0 right-0 mt-1 max-h-44 overflow-y-auto rounded-lg border border-[color:var(--tl-pop-line)] bg-[color:var(--tl-pop)] shadow-xl py-1">
           {matches.map((o) => (
             <li key={o}>
               <button
@@ -2242,8 +2252,8 @@ function SymbolInput({ value, onChange, options }) {
                   onChange(o);
                   setOpen(false);
                 }}
-                className={`w-full text-left px-3 py-2 text-sm cursor-pointer hover:bg-[#232529] transition-colors ${
-                  o === value ? "text-[#4ADE80]" : "text-[#C9CBD1]"
+                className={`w-full text-left px-3 py-2 text-sm cursor-pointer hover:bg-[color:var(--tl-track)] transition-colors ${
+                  o === value ? "text-[color:var(--tl-pos)]" : "text-[color:var(--tl-tx-2)]"
                 }`}
               >
                 {o}
@@ -2254,7 +2264,7 @@ function SymbolInput({ value, onChange, options }) {
       )}
 
       {value.trim() && !exact && (
-        <p className="text-[11px] text-[#4A4D53] mt-1">
+        <p className="text-[11px] text-[color:var(--tl-tx-5)] mt-1">
           New pair — it'll be in the list next time.
         </p>
       )}
@@ -2322,15 +2332,15 @@ function EntryModal({ entry, onSave, onClose, symbolOptions = [] }) {
   }
 
   const field =
-    "w-full bg-[#0D0E10] border border-[#232529] rounded-lg px-3 py-2 text-base sm:text-sm text-white placeholder-[#4A4D53] focus:outline-none focus:border-[#4ADE80]/50 focus:ring-2 focus:ring-[#4ADE80]/15 [color-scheme:dark]";
-  const labelCls = "text-[11px] uppercase tracking-wider text-[#6E7076] block mb-1";
+    "w-full bg-[color:var(--tl-field)] border border-[color:var(--tl-line)] rounded-lg px-3 py-2 text-base sm:text-sm text-[color:var(--tl-tx)] placeholder:text-[color:var(--tl-tx-5)] focus:outline-none focus:border-[color:var(--tl-pos-focus)] focus:ring-2 focus:ring-[color:var(--tl-pos-ring)]";
+  const labelCls = "text-[11px] uppercase tracking-wider text-[color:var(--tl-tx-4)] block mb-1";
 
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-[#121316] border border-[#232529] rounded-2xl w-full max-w-sm p-5 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-[color:var(--tl-scrim)] backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-[color:var(--tl-surface)] border border-[color:var(--tl-line)] rounded-2xl w-full max-w-sm p-5 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold">{isEdit ? "Edit entry" : "Add entry"}</h3>
-          <button onClick={onClose} aria-label="Close" className="text-[#6E7076] cursor-pointer hover:text-white">
+          <button onClick={onClose} aria-label="Close" className="text-[color:var(--tl-tx-4)] cursor-pointer hover:text-[color:var(--tl-tx)]">
             <X size={18} />
           </button>
         </div>
@@ -2341,7 +2351,7 @@ function EntryModal({ entry, onSave, onClose, symbolOptions = [] }) {
           </div>
           <div>
             <label className={labelCls}>
-              Symbol <span className="normal-case tracking-normal text-[#4A4D53]">optional</span>
+              Symbol <span className="normal-case tracking-normal text-[color:var(--tl-tx-5)]">optional</span>
             </label>
             <SymbolInput value={symbol} onChange={setSymbol} options={symbolOptions} />
           </div>
@@ -2357,7 +2367,7 @@ function EntryModal({ entry, onSave, onClose, symbolOptions = [] }) {
               className={field}
               required
             />
-            <p className="text-[11px] text-[#4A4D53] mt-1">
+            <p className="text-[11px] text-[color:var(--tl-tx-5)] mt-1">
               The MT5 Profit column, before fees. Start with a minus for a loss.
             </p>
           </div>
@@ -2386,17 +2396,17 @@ function EntryModal({ entry, onSave, onClose, symbolOptions = [] }) {
               />
             </div>
           </div>
-          <p className="text-[11px] text-[#4A4D53]">
+          <p className="text-[11px] text-[color:var(--tl-tx-5)]">
             The minus is added for you — both always come off the total. Leave blank if the
             account charges neither.
           </p>
 
           {/* Live net so you can check it against the balance change in MT5 */}
-          <div className="flex items-center justify-between rounded-lg bg-[#0D0E10] border border-[#232529] px-3 py-2.5">
-            <span className="text-[11px] uppercase tracking-wider text-[#6E7076]">Net P&L</span>
+          <div className="flex items-center justify-between rounded-lg bg-[color:var(--tl-field)] border border-[color:var(--tl-line)] px-3 py-2.5">
+            <span className="text-[11px] uppercase tracking-wider text-[color:var(--tl-tx-4)]">Net P&L</span>
             <span
               className={`text-sm font-semibold ${
-                !grossValid ? "text-[#4A4D53]" : net >= 0 ? "text-[#4ADE80]" : "text-[#F87171]"
+                !grossValid ? "text-[color:var(--tl-tx-5)]" : net >= 0 ? "text-[color:var(--tl-pos)]" : "text-[color:var(--tl-neg)]"
               }`}
             >
               {grossValid ? `${net >= 0 ? "+" : "-"}${currency(Math.abs(net))}` : "--"}
@@ -2405,7 +2415,7 @@ function EntryModal({ entry, onSave, onClose, symbolOptions = [] }) {
 
           <div>
             <label className={labelCls}>
-              Note <span className="normal-case tracking-normal text-[#4A4D53]">optional</span>
+              Note <span className="normal-case tracking-normal text-[color:var(--tl-tx-5)]">optional</span>
             </label>
             <input
               type="text"
@@ -2417,7 +2427,7 @@ function EntryModal({ entry, onSave, onClose, symbolOptions = [] }) {
           </div>
           <button
             type="submit"
-            className="w-full bg-[#4ADE80] hover:bg-[#3ECF74] text-[#08130C] rounded-lg py-2.5 text-sm font-semibold mt-2 cursor-pointer transition-colors"
+            className="w-full bg-[color:var(--tl-accent)] hover:bg-[color:var(--tl-accent-hover)] text-[color:var(--tl-on-accent)] rounded-lg py-2.5 text-sm font-semibold mt-2 cursor-pointer transition-colors"
           >
             {isEdit ? "Update entry" : "Save entry"}
           </button>

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import './App.css'
+import './theme.css'
+import './lib/theme' // applies the saved light / dark choice before first paint
 import { supabase } from './lib/supabaseClient'
 import Auth from './Components/Auth'
 import TradingJournalDashboard from './Components/TradingJournalDashboard'
@@ -21,7 +23,7 @@ function App() {
     return () => subscription.unsubscribe()
   }, [])
 
-  if (checking) return <div className="min-h-screen bg-[#0A0A0B]" />
+  if (checking) return <div className="min-h-screen bg-[color:var(--tl-bg)]" />
 
   return (
     <div className="app-container">

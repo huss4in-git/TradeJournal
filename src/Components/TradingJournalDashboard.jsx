@@ -1,6 +1,9 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import Logo from "./Logo";
 import ThemeToggle from "./ThemeToggle";
+import TradesPage from "./TradesPage";
+import ReportsPage from "./ReportsPage";
+import { Empty, PageHeader } from "./ui";
 import {
   XAxis,
   YAxis,
@@ -52,6 +55,67 @@ const GREEN = "var(--tl-pos-fill)";
 const RED = "var(--tl-neg-fill)";
 const FLAT = "var(--tl-flat-fill)";
 const AMBER = "var(--tl-warn-fill)";
+
+/* ------------------------------------------------------------------
+   Pages
+   One entry per button on the left rail (null is the divider). A page
+   with `soon` text isn't built yet and shows that text as a placeholder.
+   The open page is kept in the address as #trades, #reports, ... so a
+   refresh or the browser's back button lands where you expect.
+   ------------------------------------------------------------------ */
+const PAGES = [
+  { id: "dashboard", icon: LayoutGrid, label: "Dashboard" },
+  { id: "trades", icon: CandlestickChart, label: "Trades" },
+  {
+    id: "journal",
+    icon: NotebookPen,
+    label: "Journal",
+    soon: "A daily diary: your plan before the session, how you felt, and what you learned, kept next to that day's trades.",
+  },
+  { id: "reports", icon: BarChart3, label: "Reports" },
+  {
+    id: "playbook",
+    icon: ClipboardList,
+    label: "Playbook",
+    soon: "Your setups and trading rules, a pre-trade checklist, and a score for how often you stuck to them.",
+  },
+  null,
+  {
+    id: "goals",
+    icon: TrendingUp,
+    label: "Goals",
+    soon: "A monthly profit target, a daily loss limit and a maximum drawdown, with progress against each.",
+  },
+  {
+    id: "accounts",
+    icon: Wallet,
+    label: "Accounts",
+    soon: "Several trading accounts side by side: starting balances, deposits and withdrawals, and stats for each.",
+  },
+];
+
+const pageFromAddress = () => {
+  const id = window.location.hash.slice(1);
+  return PAGES.some((p) => p && p.id === id) ? id : "dashboard";
+};
+
+// A database row in the shape the app works with.
+function rowToTrade(row) {
+  const gross = Number(row.pnl);
+  const commission = Number(row.commission ?? 0);
+  const swap = Number(row.swap ?? 0);
+  return {
+    id: row.id,
+    date: row.entry_date,
+    symbol: row.symbol,
+    gross,
+    commission,
+    swap,
+    fees: commission + swap,
+    pnl: row.net_pnl != null ? Number(row.net_pnl) : gross + commission + swap,
+    note: row.note,
+  };
+}
 
 // Starting equity used to draw the balance line. Set this to your account size.
 const STARTING_BALANCE = 1000;
@@ -333,6 +397,25 @@ export default function TradingJournalDashboard({ session }) {
     })();
   }, []);
 
+  // Which page is open (see PAGES).
+  const [page, setPage] = useState(pageFromAddress);
+  useEffect(() => {
+    const sync = () => setPage(pageFromAddress());
+    window.addEventListener("hashchange", sync);
+    window.addEventListener("popstate", sync);
+    return () => {
+      window.removeEventListener("hashchange", sync);
+      window.removeEventListener("popstate", sync);
+    };
+  }, []);
+  const goToPage = (id) => {
+    if (id === page) return;
+    const { pathname, search } = window.location;
+    window.history.pushState(null, "", id === "dashboard" ? pathname + search : `#${id}`);
+    setPage(id);
+    window.scrollTo(0, 0);
+  };
+
   // Economic events, read from Supabase. A cron keeps that table current,
   // so a page load never depends on Forex Factory being reachable.
   const [newsByDay, setNewsByDay] = useState({});
@@ -516,6 +599,31 @@ export default function TradingJournalDashboard({ session }) {
     setShowForm(false);
   }
 
+  // Adds many entries at once. Used by Import on the Trades page.
+  async function importEntries(rows) {
+    if (!rows.length) return { count: 0 };
+    const { data, error } = await supabase
+      .from("manual_entries")
+      .insert(
+        rows.map((r) => ({
+          entry_date: r.date,
+          symbol: r.symbol || null,
+          pnl: r.gross,
+          commission: r.commission || 0,
+          swap: r.swap || 0,
+          note: r.note || null,
+        }))
+      )
+      .select();
+
+    if (error) {
+      console.error("Failed to import entries:", error.message);
+      return { error: error.message };
+    }
+    setTrades((prev) => [...prev, ...data.map(rowToTrade)]);
+    return { count: data.length };
+  }
+
   async function deleteEntry(id) {
     const { error } = await supabase.from("manual_entries").delete().eq("id", id);
     if (error) {
@@ -566,8 +674,10 @@ export default function TradingJournalDashboard({ session }) {
         {/* Mobile header */}
         <div ref={headRowRef} className="sm:hidden">
           <div className="bg-[color:var(--tl-bg)] border-b border-[color:var(--tl-hair)] px-4 pt-4 pb-4 flex items-center justify-between gap-3">
-            <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
-            <div className="flex items-center gap-2 shrink-0">
+            <h1 className="text-xl font-semibold tracking-tight">
+              {PAGES.find((p) => p && p.id === page)?.label}
+            </h1>
+            <div className={`items-center gap-2 shrink-0 ${page === "dashboard" ? "flex" : "hidden"}`}>
               <button
                 onClick={() => setShowSearch((v) => !v)}
                 aria-expanded={showSearch}
@@ -598,7 +708,7 @@ export default function TradingJournalDashboard({ session }) {
 
           {/* Sits in the flow inside the measured header, so opening it pushes
               the page down instead of covering the Add Entry row. */}
-          {showSearch && (
+          {showSearch && page === "dashboard" && (
             <div className="bg-[color:var(--tl-bg)] border-b border-[color:var(--tl-hair)] px-4 pt-3 pb-3">
               <div className="relative">
                 <Search
@@ -635,17 +745,75 @@ export default function TradingJournalDashboard({ session }) {
 
       <div className="flex">
         {/* Icon rail */}
-        <nav className="hidden lg:flex w-16 shrink-0 flex-col items-center gap-1.5 py-5 bg-[color:var(--tl-chrome)] border-r border-[color:var(--tl-hair)] sticky top-[var(--topbar-h,64px)] h-[calc(100vh-var(--topbar-h,64px))] self-start">
-          <RailButton icon={LayoutGrid} active />
-          <RailButton icon={CandlestickChart} />
-          <RailButton icon={NotebookPen} />
-          <RailButton icon={BarChart3} />
-          <RailButton icon={ClipboardList} />
-          <div className="h-px w-7 bg-[color:var(--tl-hair)] my-2" />
-          <RailButton icon={TrendingUp} />
-          <RailButton icon={Wallet} />
+        <nav className="hidden lg:flex w-16 shrink-0 flex-col items-center gap-1.5 py-5 bg-[color:var(--tl-chrome)] border-r border-[color:var(--tl-hair)] sticky top-[var(--topbar-h,64px)] h-[calc(100vh-var(--topbar-h,64px))] self-start z-20">
+          {PAGES.map((item, i) =>
+            item ? (
+              <RailButton
+                key={item.id}
+                icon={item.icon}
+                label={item.label}
+                active={page === item.id}
+                onClick={() => goToPage(item.id)}
+              />
+            ) : (
+              <div key={i} className="h-px w-7 bg-[color:var(--tl-hair)] my-2" />
+            )
+          )}
         </nav>
 
+        <div className="flex-1 min-w-0">
+        {/* The rail only fits on wide screens. Below that, the same pages
+            are a row of tabs that scrolls sideways. */}
+        <nav
+          aria-label="Pages"
+          className="lg:hidden flex gap-1.5 overflow-x-auto [scrollbar-width:none] px-4 sm:px-5 py-3 border-b border-[color:var(--tl-hair)] sm:border-b-0 sm:pb-0"
+        >
+          {PAGES.filter(Boolean).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => goToPage(item.id)}
+              aria-current={page === item.id ? "page" : undefined}
+              className={`shrink-0 h-8 inline-flex items-center gap-1.5 px-3 rounded-lg border text-xs font-medium cursor-pointer transition-colors ${
+                page === item.id
+                  ? "bg-[color:var(--tl-pos-soft)] border-[color:var(--tl-pos-line)] text-[color:var(--tl-pos)]"
+                  : "bg-[color:var(--tl-raised)] border-[color:var(--tl-line)] text-[color:var(--tl-tx-3)]"
+              }`}
+            >
+              <item.icon size={13} />
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        {page === "trades" && (
+          <TradesPage
+            trades={trades}
+            onAdd={() => setShowForm(true)}
+            onEdit={setEditing}
+            onDelete={deleteEntry}
+            onImport={importEntries}
+          />
+        )}
+        {page === "reports" && <ReportsPage trades={trades} />}
+        {PAGES.filter((p) => p && p.soon && p.id === page).map((p) => (
+          <main key={p.id} className="flex-1 min-w-0 px-4 sm:px-5 pb-6 sm:py-6">
+            <PageHeader title={p.label} subtitle="Coming soon" />
+            <div className="bg-[color:var(--tl-surface)] rounded-2xl border border-[color:var(--tl-line)]">
+              <Empty icon={p.icon} text={`${p.label} is on the way`} hint={p.soon}>
+                <button
+                  type="button"
+                  onClick={() => goToPage("dashboard")}
+                  className="text-xs font-medium text-[color:var(--tl-pos)] hover:underline cursor-pointer"
+                >
+                  Back to the dashboard
+                </button>
+              </Empty>
+            </div>
+          </main>
+        ))}
+
+        {page === "dashboard" && (
         <main className="flex-1 min-w-0 px-4 sm:px-5 pt-0 pb-6 sm:py-6">
           {/* Header row */}
           <div className="hidden sm:flex items-center justify-between mb-1 flex-wrap gap-3">
@@ -1063,6 +1231,8 @@ export default function TradingJournalDashboard({ session }) {
             </div>
           </div>
         </main>
+        )}
+        </div>
       </div>
 
       {(showForm || editing) && (
@@ -1956,16 +2126,24 @@ function chunkIntoWeeks(cells) {
 /* ------------------------------------------------------------------
    Shared components
    ------------------------------------------------------------------ */
-function RailButton({ icon: Icon, active }) {
+function RailButton({ icon: Icon, label, active, onClick }) {
   return (
     <button
-      className={`w-10 h-10 rounded-xl flex items-center justify-center cursor-default transition-colors ${
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      aria-current={active ? "page" : undefined}
+      className={`group relative w-10 h-10 rounded-xl flex items-center justify-center cursor-pointer transition-colors ${
         active
           ? "bg-[color:var(--tl-pos-soft)] border border-[color:var(--tl-pos-line)] text-[color:var(--tl-pos)]"
           : "text-[color:var(--tl-rail)] hover:bg-[color:var(--tl-subtle)] hover:text-[color:var(--tl-tx-2)]"
       }`}
     >
       <Icon size={17} />
+      {/* Page name, shown beside the rail on hover or keyboard focus. */}
+      <span className="pointer-events-none absolute left-full ml-3 px-2.5 py-1.5 rounded-lg bg-[color:var(--tl-pop)] border border-[color:var(--tl-pop-line)] text-xs font-medium text-[color:var(--tl-tx-1)] whitespace-nowrap shadow-lg opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity">
+        {label}
+      </span>
     </button>
   );
 }
